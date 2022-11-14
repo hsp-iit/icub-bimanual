@@ -33,13 +33,13 @@ class iCubBase : public yarp::os::PeriodicThread,
 
 		bool move_to_positions(const std::vector<yarp::sig::Vector> &positions,             // Move joints through multiple positions
 				       const std::vector<double>            &times);
-		         
-	private:
+	
+	protected:
 		double startTime;                                                                   // Used for timing the control loop	
 		
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
 		
-		enum ControlMode {joint, cartesian, bimanual} controlMode;                          // Defines the different control modes
+		enum ControlMode {joint, cartesian, grasp} controlMode;                             // Defines the different control modes
 		
 		// Joint control properties
 		double kq = 100.0;                                                                  // Feedback on joint position error
@@ -60,6 +60,11 @@ class iCubBase : public yarp::os::PeriodicThread,
 			                       	
 		// Internal functions
 		bool update_state();
+		
+		// Functions related to the PeriodicThread class
+		bool threadInit();
+		void threadRelease();
+//              void run(); // This is declared in the child class since it can be unique
 };                                                                                                  // Semicolon needed after class declaration
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,6 +278,29 @@ bool iCubBase::move_to_positions(const std::vector<yarp::sig::Vector> &positions
 		start();                                                                            // Start the control thread
 		return true;                                                                        // Success
 	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                 Initialise the control thread                                  //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::threadInit()
+{
+	this->startTime = yarp::os::Time::now();
+	return true;
+	// jump immediately to run();
+}
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                             Executed after a control thread is stopped                         //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void iCubBase::threadRelease()
+{
+	std::vector<double> command;
+	for(int i = 0; i < this->n; i++) command.push_back(0.0);                                    // Set all as zero
+	send_velocity_commands(command);                                                            // Pass on to JointInterface
+	
+//      This is for when running in torque mode:
+//	this->computer.generalizedGravityForces(this->generalForces);
+//      send_torque_commands(this->generalForces.jointTorques();
 }
 
 #endif

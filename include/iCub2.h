@@ -1,6 +1,8 @@
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                           Custom class for 2-handed control of iCub 2                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-#include <iCubBase.h>
+#include <iCubBase.h>                                                                               // Custom class: most functions defined here
 
 std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
@@ -15,12 +17,14 @@ class iCub2 : public iCubBase
 	
 	private:
 
-	virtual bool threadInit() { return true;}                                                   // Pre-processing for control loop
-	virtual void run() {}                                                                       // Main control loop
-	virtual void threadRelease() {}                                                             // Post-processing of control loop
+		void run();                                                                         // Main control loop
 	
 };                                                                                                  // Semicolon needed after class declaration
 
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                Constructor for the iCub 2                                      //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 iCub2::iCub2(const std::string &fileName,
              const std::vector<std::string> &jointList,
              const std::vector<std::string> &portList) :
@@ -30,4 +34,31 @@ iCub2::iCub2(const std::string &fileName,
 	          << "Even drones can fly away.\n"
 	          << "The Queen is their slave.\n" << std::endl;
 }
-             
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                     MAIN CONTROL LOOP                                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void iCub2::run()
+{
+	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since start of control loop
+	
+	Eigen::VectorXd vCommand(this->n); vCommand.setZero();                                      // Value to be computed
+	
+	if(this->controlMode == joint)
+	{
+		// Worker bees can leave.
+	}
+	else if(this->controlMode == cartesian)
+	{
+		// Even drones can fly away.
+	}
+	else if(this->controlMode == grasp)
+	{
+		// The Queen is their slave.
+	}
+	
+	// Transfer the value from Eigen::Vector to std::vector<double> and send
+	std::vector<double> temp; temp.resize(this->n);
+	for(int i = 0; i < this->n; i++) temp[i] = vCommand(i);
+	
+	send_velocity_commands(temp);
+}
