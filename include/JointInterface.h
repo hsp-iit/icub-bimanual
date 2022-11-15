@@ -34,7 +34,9 @@ class JointInterface
 		                     	
 		bool read_encoders();                                                               // Update the joint states internally
 		
-		bool send_velocity_commands(const std::vector<double> &command);                    // Send velocity commands to the motors
+		bool send_velocity_command(const double &command, const int &i);                    // Send a velocity command to a joint motor
+		
+		bool send_velocity_commands(const std::vector<double> &commands);                   // Send velocity commands to several motors
 		
 		std::vector<double> get_joint_positions()  const { return this->pos; }              // As it says on the label
 		
@@ -46,7 +48,7 @@ class JointInterface
 		int n;                                                                              // Number of joints being controlled
 		
 		std::vector<std::array<double,2>> pLim;
-		std::vector<double>   vMax;                                                         // Maximum velocity for the joint motors
+		std::vector<double>   vLim;                                                         // Maximum velocity for the joint motors
                                 
 	private:
 		// Properties
@@ -81,7 +83,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 	this->acc.resize(this->n);                                                                  // Resize acceleration vector
 	this->torque.resize(this->n);                                                               // Resize the torque vector
 	this->pLim.resize(this->n);                                                                 // Resize position limits vector
-	this->vMax.resize(this->n);                                                                 // Resize max velocity vector
+	this->vLim.resize(this->n);                                                                 // Resize max velocity vector
 	
 	/************************** I copied this code from elsewhere *****************************/
 	
@@ -134,12 +136,12 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 			{
 				double notUsed;
 				this->limits->getLimits   (i, &this->pLim[i][0], &this->pLim[i][1]);// Get the position limits
-				this->limits->getVelLimits(i, &notUsed,          &this->vMax[i]);   // Get velocity limits (assume vMin = -vMax);
+				this->limits->getVelLimits(i, &notUsed,          &this->vLim[i]);   // Get velocity limits (assume vMin = -vMax);
 
 				// Convert from degrees to radians
 				this->pLim[i][0] *= M_PI/180;
 				this->pLim[i][1] *= M_PI/180;
-				this->vMax[i]    *= M_PI/180;
+				this->vLim[i]    *= M_PI/180;
 			}
 			
 			// Finally, configure the encoders
@@ -290,10 +292,32 @@ bool JointInterface::read_encoders()
 	}
 }
 
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                              Send a velocity command to a joint motor                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool JointInterface::send_velocity_command(const double &command, const int &i)
+{
+	if(i >= this->n)
+	{
+		std::cerr << "[ERROR] [JOINT INTERFACE] send_velocity_command(): "
+		          << "There are only " << this->n << " joints, but your argument was for "
+		          << " joint " << i+1 << "." << std::endl;
+		
+		return false;
+	}
+	else
+	{
+		this->controller->velocityMove(i,command);
+		
+		return true;
+	}
+}
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                    Send commands to the joints                                 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool JointInterface::send_velocity_commands(const std::vector<double> &command)
+bool JointInterface::send_velocity_commands(const std::vector<double> &commands)
 {
 	if(not this->isValid)
 	{
@@ -303,17 +327,17 @@ bool JointInterface::send_velocity_commands(const std::vector<double> &command)
 		          
 		return false;
 	}
-	else if(command.size() != this->n)
+	else if(commands.size() != this->n)
 	{
 		std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_commands(): "
-		          << "The input vector had " << command.size() << " elements, "
+		          << "The input vector had " << commands.size() << " elements, "
 		          << "but this robot has " << this->n << " joints!" << std::endl;
 		          
 		return false;
 	}
 	else
 	{
-		for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,command[i]);
+		for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,commands[i]);
 	
 		return true;
 	}
