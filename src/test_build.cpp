@@ -8,6 +8,10 @@
 
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
 
+std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
+			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
+		        "r_shoulder_pitch", "r_shoulder_roll", "r_shoulder_yaw", "r_elbow", "r_wrist_prosup", "r_wrist_pitch", "r_wrist_yaw"};
+
 int main(int argc, char *argv[])
 {
 	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
