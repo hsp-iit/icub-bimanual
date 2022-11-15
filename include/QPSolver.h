@@ -162,6 +162,8 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,                       
 					{
 						std::cerr << "[ERROR] [QPSOLVER] solve(): "
 						          << "Start point x0 is outside the constraints!" << std::endl;
+						          
+						std::cout << "Constraint no. " << j+1 << " distance " << d[j] << std::endl;
 						
 						return x0;
 					}
