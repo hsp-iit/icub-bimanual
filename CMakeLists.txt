@@ -31,3 +31,6 @@ include_directories(include)                                                    
 #################################### Executables to be compiled ####################################
 add_executable(test_build src/test_build.cpp)
 target_link_libraries(test_build Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
+
+add_executable(grasp-demo src/grasp-demo.cpp)
+target_link_libraries(grasp-demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
