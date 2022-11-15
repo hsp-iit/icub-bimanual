@@ -24,6 +24,7 @@ class iCubBase : public yarp::os::PeriodicThread,
                  public QPSolver
 {
 	public:
+		
 		iCubBase(const std::string &fileName,
 		         const std::vector<std::string> &jointList,
 		         const std::vector<std::string> &portList);
@@ -33,9 +34,14 @@ class iCubBase : public yarp::os::PeriodicThread,
 
 		bool move_to_positions(const std::vector<yarp::sig::Vector> &positions,             // Move joints through multiple positions
 				       const std::vector<double>            &times);
+				      
+		void halt();
 	
 	protected:
-		double startTime;                                                                   // Used for timing the control loop	
+	
+		double dt = 0.01;                                                                   // Default control frequency
+		
+		double startTime;                                                                   // Used for timing the control loop
 		
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
 		
@@ -53,13 +59,15 @@ class iCubBase : public yarp::os::PeriodicThread,
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
 		
 		// Kinematics & dynamics
-		iDynTree::KinDynComputations             computer;                                  // Does all the kinematics & dynamics
-		iDynTree::Transform                      torsoPose;                                 // Needed for inverse dynamics; not used yet
-		iDynTree::Twist                          torsoTwist;                                // Needed for inverse dynamics; not used yet
-		iDynTree::Vector3                        gravity;                                   // Needed for inverse dynamics; not used yet
+		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
+		iDynTree::Transform          torsoPose;                                             // Needed for inverse dynamics; not used yet
+		iDynTree::Twist              torsoTwist;                                            // Needed for inverse dynamics; not used yet
+		iDynTree::Vector3            gravity;                                               // Needed for inverse dynamics; not used yet
 			                       	
 		// Internal functions
 		bool update_state();
+		
+		void get_speed_limits(double &minSpeed, double &maxSpeed, const int &i);            // For joint limit avoidance
 		
 		// Functions related to the PeriodicThread class
 		bool threadInit();
@@ -108,7 +116,7 @@ iCubBase::iCubBase(const std::string &fileName,
 	if(not loader.loadReducedModelFromFile(fileName, jointList, "urdf"))
 	{
 		std::cerr << "[ERROR] [ICUB] Constructor: "
-		          << "Could not load model from the given path." << fileName << std::endl;
+		          << "Could not load model from the given path " << fileName << std::endl;
 	}
 	else
 	{
@@ -167,7 +175,6 @@ bool iCubBase::update_state()
 			this->q[i]    = temp_position[i];
 			this->qdot[i] = temp_velocity[i];
 		}
-		////////////////////////////////////////////////////////////////////////////////////
 		
 		// Put them in to the iDynTree class to solve all the physics
 		if(this->computer.setRobotState(this->torsoPose,
@@ -281,6 +288,20 @@ bool iCubBase::move_to_positions(const std::vector<yarp::sig::Vector> &positions
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                               Stop the robot immediately                                       //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void iCubBase::halt()
+{
+	if(isRunning()) stop();                                                                     // Stop any control threads that are running
+	
+	// There's probably a better way to do this:
+	yarp::sig::Vector temp(this->n);
+	for(int i = 0; i < this->n; i++) temp[i] = this->q[i];
+	
+	move_to_position(temp,2.0);                                                                 // Maintain current joint position
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                 Initialise the control thread                                  //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool iCubBase::threadInit()
@@ -301,6 +322,24 @@ void iCubBase::threadRelease()
 //      This is for when running in torque mode:
 //	this->computer.generalizedGravityForces(this->generalForces);
 //      send_torque_commands(this->generalForces.jointTorques();
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                   Get the instantenous speed limits for joint limit avoidance                  //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void iCubBase::get_speed_limits(double &minSpeed, double &maxSpeed, const int &i)
+{
+	double maxAcc = 50;
+	
+	// Compute lower limit
+	minSpeed = std::max( (this->pLim[i][0] - this->q[i])/this->dt,
+	           std::max( -this->vLim[i],
+	                     -sqrt(2*maxAcc*(this->q[i] - this->pLim[i][0]))));
+	              
+	// Compute upper limit
+	maxSpeed = std::min( (this->pLim[i][1] - this->q[i])/this->dt,
+	           std::min(  this->vLim[i],
+	                      sqrt(2*maxAcc*(this->pLim[i][1] - this->q[i]))));               
 }
 
 #endif
