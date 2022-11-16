@@ -30,7 +30,7 @@ class QPSolver
 		Eigen::VectorXd solve(const Eigen::MatrixXd &H,                                     // Solve a QP problem with inequality constraints
 		                      const Eigen::VectorXd &f,
 		                      const Eigen::MatrixXd &B,
-		                      const Eigen::VectorXd &c,
+		                      const Eigen::VectorXd &z,
 		                      const Eigen::VectorXd &x0);
 		                                                   
 		Eigen::VectorXd least_squares(const Eigen::VectorXd &y,                             // Solve a constrained least squares problem
@@ -89,19 +89,19 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,                                          // Solve a QP problem with inequality constraints
                                 const Eigen::VectorXd &f,
                                 const Eigen::MatrixXd &B,
-                                const Eigen::VectorXd &c,
+                                const Eigen::VectorXd &z,
                                 const Eigen::VectorXd &x0)
 {
 	// Check the inputs are sound
 	int n = x0.size();
-	if(H.rows() != n or H.cols() != n or f.size() != n or B.rows() != c.size())
+	if(H.rows() != n or H.cols() != n or f.size() != n or B.rows() != z.size())
 	{
 		std::cout << "[ERROR] [QPSOLVER] solve(): "
 		          << "Dimensions of input arguments do not match. "
 		          << "H matrix was " << H.rows() << "x" << H.cols() << ", "
 		          << "f vector was " << f.size() << "x1, "
 		          << "B matrix was " << B.rows() << "x" << B.cols() << ", "
-		          << "c vector was " << c.size() << "x1, and "
+		          << "c vector was " << z.size() << "x1, and "
 		          << "x0 vector was " << n << "x1." << std::endl;
 		          
 		return x0;
@@ -112,7 +112,7 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,                       
 		//
 		//    min f(x) = 0.5*x'*H*x + x'*f - u*sum(log(d_i))
 		//
-		// where d_i = b_i*x - c_i is the distance to the constraint
+		// where d_i = b_i*x - z_i is the distance to the constraint
 		//
 		// Then the gradient and Hessian are:
 		//
@@ -154,7 +154,7 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,                       
 			// Compute distance to each constraint
 			for(int j = 0; j < numConstraints; j++)
 			{
-				d[j] = bt[j].dot(x) - c(j);                                         // Distance to jth constraint
+				d[j] = bt[j].dot(x) - z(j);                                         // Distance to jth constraint
 				
 				if(d[j] <= 0)
 				{
