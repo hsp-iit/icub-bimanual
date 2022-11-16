@@ -33,6 +33,9 @@ iCub2::iCub2(const std::string &fileName,
              const std::vector<std::string> &portList) :
              iCubBase(fileName, jointList, portList)
 {
+	// Lower the gains since we're running in velocity mode
+	set_joint_gains(5.0, 0.01);                                                                // We don't actually care about the derivative
+	
 	// Set the constraints for the iCub2 shoulder tendons.
 	// A *single* arm is constrained by
 	//      A*q + b > 0,
@@ -48,6 +51,8 @@ iCub2::iCub2(const std::string &fileName,
 	                           
 	this->A.block(5,10,5,3) = this->A.block(0,3,5,3);                                           // Same constraint for right arm as left arm
 	
+	this->A *= 180/M_PI;                                                                        // Convert from rad to deg
+	
 	this->b.head(5) << 347.00,
 	                   366.57,
 	                    66.60,
@@ -57,11 +62,11 @@ iCub2::iCub2(const std::string &fileName,
 	this->b.tail(5) = this->b.head(5);                                                          // Same constraint for the right arm as the left arm
 	
 	// Now generate the larger constraint for the QP solver:
-	//      B*qdot + z >= 0
+	//      B*qdot >= z
 	// where:
-	//      B = [  -I  ]    z = [  -vMax  ]
-	//          [   I  ]        [   vMin  ]
-	//          [ dt*A ]        [ A*q + b ]
+	//      B = [  -I  ]    z = [   -vMax    ]
+	//          [   I  ]        [    vMin    ]
+	//          [ dt*A ]        [ -(A*q + b) ]
 	
 	B.block( 0,0,17,17) = -1*Eigen::MatrixXd::Identity(17,17);
 	B.block(17,0,17,17) =    Eigen::MatrixXd::Identity(17,17);
@@ -75,60 +80,56 @@ iCub2::iCub2(const std::string &fileName,
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void iCub2::run()
 {
-	// Variables used in this scope:
+	update_state();                                                                             // Read joints, update kinematics
+	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Compute time since start of control thread
+	
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
-
-	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since start of control loop
 	
 	if(this->controlMode == joint)
 	{
-		// We need these to get the desired state from the trajectory generator
-		iDynTree::VectorDynSize     q_d(this->n),                                           // Desired position
-		                         qdot_d(this->n),                                           // Desired velocity
-		                        qddot_d(this->n);                                           // Desired acceleration (not used for iCub2)
-	
+		double q_d, qdot_d, qddot_d;                                                        // Desired state of a single joint
 		Eigen::VectorXd ref(this->n);                                                       // Desired + error feedback
 		Eigen::VectorXd initialGuess(this->n);                                              // Needed for the QP solver
+		
 		for(int i = 0; i < this->n; i++)
 		{
-			ref[i] = qdot_d[i] + this->kq*(q_d[i] + this->q[i]);                        // Solve the feedforward + feedback control
-
-			double minSpeed, maxSpeed;
-			get_speed_limits(minSpeed,maxSpeed,i);                                      // Get the instantaneous speed limits
+			q_d = this->jointTrajectory[i].evaluatePoint(elapsedTime, qdot_d, qddot_d); // Compute the desired state for given time
 			
+			ref[i] = qdot_d + this->kq*(q_d - this->q[i]);                              // Feedforward + feedback control
+			
+			std::cout << "Joint " << i+1 << " tracking error: " << (q_d - this->q[i])*180/M_PI << std::endl;
+
+/*			double minSpeed, maxSpeed;
+			get_speed_limits(minSpeed,maxSpeed,i);                                      // Get the instantaneous speed limits
 			
 			initialGuess[i] = 0.5*(minSpeed + maxSpeed);                                // Halfway
 			
 			z[i]         = -maxSpeed;
 			z[i+this->n] =  minSpeed;
 			
-			// Note to self: Putting joint limits here is kind of superflous because
-			// the trajectory generator ensures limits are obeyed, but it makes the code
-			// neater when solving the Cartesian control.
+			// NOTE: Putting joint limits here is kind of superflous because the
+			//       "move_to_position()" function ensures it is always within position
+			//       limits, but it means we can use the same constraints for Cartesian
+                        //       control.
 		}
 		
-		z.tail(10) = this->A*this->q + this->b;                                             // For shoulder limits
+		// NOTE: The iCub wiki specifies the constraint as Aq + b > 0,
+		//       but for the QP solver we need B*qdot >= z
+		z.tail(10) = -(this->A*this->q + this->b);                                          // For shoulder limits
 		
-		std::cout << z << std::endl;
+		// Solve the problem:
+		//      min 0.5*qdot'H*qdot - qdot'*ref
+		//      subject to:  B*qdot >= z
+		vel = solve(Eigen::MatrixXd::Identity(this->n,this->n),                             // H
+		           -ref,                                                                    // f
+		            this->B,                                                
+		            this->z,
+		            initialGuess);*/
+		 }           
 		
-		
-		// Solve QP problem of the form:
-		//     min  0.5*x'*H*x - x'*f
-		//     subject to: B*x > z
-		Eigen::VectorXd vel = solve(Eigen::MatrixXd::Identity(this->n,this->n),             // H
-		                           -ref,                                                    // f
-		                            this->B,                                                
-		                            this->z,
-		                            initialGuess);
+		vel = ref;
 	}
-	else if(this->controlMode == cartesian)
-	{
-		// Even drones can fly away.
-	}
-	else if(this->controlMode == grasp)
-	{
-		// The Queen is their slave.
-	}
+	else std::cout << "Not yet programmed you fool!" << std::endl;
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel[i],i);                           // Send commands to the respective joint motors
 }
