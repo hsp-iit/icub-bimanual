@@ -34,6 +34,8 @@ class iCubBase : public yarp::os::PeriodicThread,
 
 		bool move_to_positions(const std::vector<yarp::sig::Vector> &positions,             // Move joints through multiple positions
 				       const std::vector<double>            &times);
+				       
+		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
 				      
 		void halt();
 	
@@ -48,8 +50,8 @@ class iCubBase : public yarp::os::PeriodicThread,
 		enum ControlMode {joint, cartesian, grasp} controlMode;                             // Defines the different control modes
 		
 		// Joint control properties
-		double kq = 100.0;                                                                  // Feedback on joint position error
-		double kd = 20.0;                                                                   // Feedback on joint velocity error
+		double kq = 10.0;                                                                   // Feedback on joint position error
+		double kd =  5.0;                                                                   // Feedback on joint velocity error
 		std::vector<iDynTree::CubicSpline> jointTrajectory;                                 // Generates reference trajectories for joints
 		
 		// Cartesian control
@@ -285,6 +287,27 @@ bool iCubBase::move_to_positions(const std::vector<yarp::sig::Vector> &positions
 		start();                                                                            // Start the control thread
 		return true;                                                                        // Success
 	}
+}
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                            Set the gains for control in the joint space                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_joint_gains(const double &proportional, const double &derivative)
+{
+	if(proportional <= 0 or derivative <= 0)
+	{
+		std::cerr << "[ERROR] [ICUB] set_joint_gains(): "
+                          << "Gains cannot be negative! "
+                          << "You input " << proportional << " for the proportional gain, "
+                          << "and " << derivative << " for the derivative gain." << std::endl;
+                
+                return false;
+        }
+        else
+        {
+        	this->kq = proportional;
+        	this->kd = derivative;
+        	return true;
+        }
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
