@@ -198,8 +198,12 @@ bool JointInterface::activate_control()
 	}
 	else
 	{
-		for(int i = 0; i < this->n; i++) this->mode->setControlMode(i, VOCAB_CM_VELOCITY);  // Activate velocity control mode on the joint motors
-		
+		for(int i = 0; i < this->n; i++)
+		{
+			this->mode->setControlMode(i, VOCAB_CM_VELOCITY);                           // Activate velocity control mode on the joint motors
+			this->controller->setRefAcceleration(i, std::numeric_limits<double>::max()); // CHANGE THIS?
+			this->controller->velocityMove(i, 0.0);					// Ensure initial velocity is zero
+		}	
 		return true;
 	}  
 }
@@ -308,8 +312,7 @@ bool JointInterface::send_velocity_command(const double &command, const int &i)
 	}
 	else
 	{
-		this->controller->velocityMove(i,command);
-		
+		this->controller->velocityMove(i,command*180/M_PI);                                 // Be sure to convert to deg/s!
 		return true;
 	}
 }
@@ -337,7 +340,7 @@ bool JointInterface::send_velocity_commands(const std::vector<double> &commands)
 	}
 	else
 	{
-		for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,commands[i]);
+		for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,commands[i]*180/M_PI);
 	
 		return true;
 	}
