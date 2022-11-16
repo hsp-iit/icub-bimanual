@@ -3,7 +3,11 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <iCub2.h>
+#include <iCub2Configurations.h>
 #include <yarp/os/RpcServer.h>
+
+double long_time = 5.0;
+double short_time = 2.0;
 
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
 
@@ -50,14 +54,47 @@ int main(int argc, char *argv[])
 			robot.halt();                                                               // Stop any control threads
 			active = false;
 		}
-		else if(command == "hello")
+		else if(command == "home")
 		{
-			output.addString("Ciao");
+			output.addString("Casa");
+			robot.move_to_position(home, short_time);
+		}
+		else if(command == "ready")
+		{
+			output.addString("Pronto");
+			robot.move_to_position(ready, short_time);
+		}
+		else if(command == "shake")
+		{
+			output.addString("Piacere");
+			robot.move_to_position(shake, short_time);
 		}
 		else if(command == "stop")
 		{
 			output.addString("Fermare");
 			robot.halt();
+		}
+		else if(command == "wave")
+		{
+			output.addString("Ciao");
+			
+			std::vector<yarp::sig::Vector> wave;
+			wave.push_back(wave1);
+			wave.push_back(wave2);
+			wave.push_back(wave1);
+			wave.push_back(wave2);
+			wave.push_back(home);
+			
+			std::vector<double> times;
+			times.push_back(2.0);
+			times.push_back(3.0);
+			times.push_back(4.0);
+			times.push_back(5.0);
+			times.push_back(8.0);
+			
+			robot.move_to_positions(wave,times);
+			
+			//robot.move_to_position(wave1, short_time);
 		}
 		else
 		{
