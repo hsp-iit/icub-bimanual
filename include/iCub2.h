@@ -99,7 +99,8 @@ void iCub2::run()
 			
 			std::cout << "Joint " << i+1 << " tracking error: " << (q_d - this->q[i])*180/M_PI << std::endl;
 
-/*			double minSpeed, maxSpeed;
+			/*
+			double minSpeed, maxSpeed;
 			get_speed_limits(minSpeed,maxSpeed,i);                                      // Get the instantaneous speed limits
 			
 			initialGuess[i] = 0.5*(minSpeed + maxSpeed);                                // Halfway
@@ -111,8 +112,10 @@ void iCub2::run()
 			//       "move_to_position()" function ensures it is always within position
 			//       limits, but it means we can use the same constraints for Cartesian
                         //       control.
+                 	*/
 		}
 		
+		/*
 		// NOTE: The iCub wiki specifies the constraint as Aq + b > 0,
 		//       but for the QP solver we need B*qdot >= z
 		z.tail(10) = -(this->A*this->q + this->b);                                          // For shoulder limits
@@ -124,9 +127,8 @@ void iCub2::run()
 		           -ref,                                                                    // f
 		            this->B,                                                
 		            this->z,
-		            initialGuess);*/
-		 }           
-		
+		            initialGuess);
+		*/
 		vel = ref;
 	}
 	else std::cout << "Not yet programmed you fool!" << std::endl;

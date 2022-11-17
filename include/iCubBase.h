@@ -29,6 +29,14 @@ class iCubBase : public yarp::os::PeriodicThread,
 		         const std::vector<std::string> &jointList,
 		         const std::vector<std::string> &portList);
 		         
+		bool move_to_pose(const yarp::sig::Matrix &left,
+		                  const yarp::sig::Matrix &right,
+		                  const double &time);
+		         
+		bool move_to_poses(const std::vector<yarp::sig::Matrix> &left,
+		                   const std::vector<yarp::sig::Matrix> &right,
+		                   const std::vector<double> &times);
+		         
 		bool move_to_position(const yarp::sig::Vector &position,                            // Move joints to given position in a given time
 		                      const double            &time);
 
@@ -59,6 +67,7 @@ class iCubBase : public yarp::os::PeriodicThread,
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Individual trajectories for left, right hand
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
+		Eigen::Matrix<double,6,6> baseMatrix;
 		
 		// Kinematics & dynamics
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
@@ -94,23 +103,15 @@ iCubBase::iCubBase(const std::string &fileName,
 	this->gravity(2) = -9.81;
 
 	// Set the Cartesian control gains	
-	this->K <<    1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
-		      0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
-		      0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
-		      0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
-		      0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
-		      0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
+	this->baseMatrix << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
+		            0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
+		            0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
+		            0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
+		            0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
+		            0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
 	
-	this->K *= 100.0;   
-	
-	this->D <<    1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
-		      0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
-		      0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
-		      0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
-		      0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
-		      0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
-	
-	this->D *= 10.0;   
+	this->K = 100*this->baseMatrix;                                                             // Set the spring forces
+	this->D =  10*this->baseMatrix;                                                             // Set the damping forces
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -167,11 +168,12 @@ bool iCubBase::update_state()
 {
 	if(JointInterface::read_encoders())
 	{
+		// NOTE TO SELF: There is probably a smarter way to do this...
+		
 		// Get the values from the JointInterface class
 		std::vector<double> temp_position = get_joint_positions();
 		std::vector<double> temp_velocity = get_joint_velocities();
 		
-		//////////////////// There is probably a smarter way to do this... /////////////////
 		for(int i = 0; i < this->n; i++)
 		{
 			this->q[i]    = temp_position[i];
@@ -202,6 +204,55 @@ bool iCubBase::update_state()
 			  
 		return false;
 	}
+}
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                          Move both hands through multiple poses                               //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool Humanoid::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
+                             const std::vector<yarp::sig::Matrix> &right,
+                             const std::vector<double> &times)
+{
+	if(isRunning()) stop();                                                                     // Stop any control threads that are running
+	this->controlMode = cartesian;                                                              // Switch to Cartesian control mode
+	this->leftControl = true; this->rightControl = true;                                        // Activate both hands
+	
+	// Set up the times for the trajectory
+	std::vector<double> t; t.push_back(0.0);                                                    // Start immediately
+	t.insert(t.end(),times.begin(),times.end());                                                // Add on the rest of the times
+	
+	// Set up the left hand trajectory
+	
+
+      
+      
+bool Humanoid::move_to_poses(const std::vector<iDynTree::Transform> &left,
+                             const std::vector<iDynTree::Transform> &right,
+                             const std::vector<double> &time)
+{
+	if(isRunning()) stop();                                                                     // Stop any control threads that are running
+	this->controlMode = cartesian;                                                              // Activate Cartesian control
+	this->leftControl = true; this->rightControl = true;                                        // Activate both hands
+	
+	// Set up the time trajectory
+	iDynTree::VectorDynSize times(time.size() + 1);
+	times[0] = 0.0;
+	for(int i = 1; i < times.size(); i++) times[i] = time[i-1];
+	
+	// Set up the left hand trajectory
+	std::vector<iDynTree::Transform> waypoint;                                                  // We will have 1 additional waypoint
+	waypoint.push_back(this->computer.getWorldTransform("left"));
+	waypoint.insert(waypoint.end(),left.begin(),left.end());                                    // Add other waypoints to the end
+	this->leftTrajectory = CartesianTrajectory(waypoint, times);
+	
+	// Set up the right hand trajectory
+	waypoint.clear();
+	waypoint.push_back(this->computer.getWorldTransform("right"));
+	waypoint.insert(waypoint.end(),right.begin(),right.end());
+	this->rightTrajectory = CartesianTrajectory(waypoint, times);
+	
+	start(); // Jump immediately to threadInit();
+	return true;
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -317,11 +368,7 @@ void iCubBase::halt()
 {
 	if(isRunning()) stop();                                                                     // Stop any control threads that are running
 	
-	// There's probably a better way to do this:
-	yarp::sig::Vector temp(this->n);
-	for(int i = 0; i < this->n; i++) temp[i] = this->q[i];
-	
-	move_to_position(temp,2.0);                                                                 // Maintain current joint position
+	for(int i = 0; i < this->n; i++) send_velocity_command(0.0, i);                             // Stop the joints from moving
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
