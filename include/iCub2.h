@@ -156,33 +156,96 @@ void iCub2::run()
 		Eigen::Matrix<double,12,1> xdot; xdot.setZero();                                    // Left hand and right hand
 		yarp::sig::Matrix pose(4,4);                                                        // Desired pose for a hand
 		yarp::sig::Vector poseError(6);                                                     // As it says on the label
-		yarp::sig::Vector vel(6), acc(6);                                                   // Desired velocity and acceleration
+		yarp::sig::Vector v(6), a(6);                                                   // Desired velocity and acceleration
 		
 		if(this->leftControl)
 		{
-			this->leftTrajectory.get_state(pose,vel,acc,elapsedTime);                   // Desired state for the given time
+			this->leftTrajectory.get_state(pose,v,a,elapsedTime);                   // Desired state for the given time
 			
 			poseError = get_pose_error(pose, convert_iDynTree_to_yarp(this->computer.getWorldTransform("left")));
 			
-			for(int i = 0; i < 6; i++)
+			/*
+			std::cout << "Desired pose:" << std::endl;
+			std::cout << pose.toString() << std::endl;
+			
+			std::cout << "Actual pose:" << std::endl;
+			std::cout << convert_iDynTree_to_yarp(this->computer.getWorldTransform("left")).toString() << std::endl;
+			
+			std::cout << "Left hand pose error:" << std::endl;
+			std::cout << poseError.toString() << std::endl;
+			*/
+			
+			for(int i = 0; i < 3; i++)
 			{
-				xdot(i) = vel(i);                                                   // Feedforward term
+				xdot(i) = 0.0; v(i);                                                   // Feedforward term
 				for(int j = 0; j < 6; j++) xdot(i) += this->K(i,j)*poseError(j);    // Feedback term
 			}
+			
+			std::cout << "Left hand velocity:" << std::endl;
+			std::cout << xdot.head(6).transpose() << std::endl;
 		}
 		
 		if(this->rightControl)
 		{
-			this->rightTrajectory.get_state(pose,vel,acc,elapsedTime);
+			this->rightTrajectory.get_state(pose,v,a,elapsedTime);
 			poseError = get_pose_error(pose, convert_iDynTree_to_yarp(this->computer.getWorldTransform("right")));
 			
 			for(int i = 0; i < 6; i++)
 			{
-				xdot(i+6) = vel(i);
+				xdot(i+6) = v(i);
 				for(int j = 0; j < 6; j++) xdot(i+6) += this->K(i,j)*poseError(j);
 			}
 		}
 		
+		// Set up the QP problem
+		
+		// H = [ 0   J ]
+		//     [ J'  M ]
+		Eigen::MatrixXd H(6+this->n,6+this->n);
+		H.block(0,0,      6,      6).setZero();
+		H.block(0,6,      6,this->n) = J;
+		H.block(6,0,this->n,      6) = Jt;
+		H.block(6,6,this->n,this->n) = M;
+		
+		// f = [ xdot ]
+		//     [  0   ]
+		Eigen::VectorXd f(6+this->n);
+		f.head(6) = xdot;
+		f.tail(this->n).setZero();
+		
+		// B = [ 0 -I ]
+		//     [ 0  I ]
+		//     [ 0  A ]
+		Eigen::MatrixXd B(2*this->n+10,6+this->n);
+		
+		B.block(        0,0,2*this->n+10,      6).setZero();
+		B.block(        0,6,    this->n,this->n) = -Eigen::MatrixXd::Identity(this->n,this->n);
+		B.block(  this->n,6,    this->n,this->n).setIdentity();
+		B.block(2*this->n,6,          5,this->n) = this->A;
+		
+		// z = [ -qdot_max ]
+		//     [  qdot_min ]
+		//     [    -b     ]
+		Eigen::VectorXd z(2*this->n+10);
+		z.tail(10) = -this->b;
+		
+		Eigen::VectorXd initialGuess(6+this->n);
+		for(int i = 0; i < this->n; i++)
+		{
+			double minVel, maxVel;
+			get_speed_limits(minVel, maxVel, i);
+			
+			z(i)         = -maxVel;
+			z(i+this->n) =  minVel;
+			
+			initialGuess(6+i) = 0.5*(minVel + maxVel);                                  // Choose half-way point for the joint velocities
+		}
+		
+		initialGuess.head(6) = -(J*M.inverse()*Jt).partialPivLu().solve(xdot);              // Initial guess for the Lagrange multiplier
+		
+		Eigen::VectorXd solution = solve(H,f,B,z,initialGuess);
+		
+		vel = solution.tail(this->n);
 	}
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel[i],i);                           // Send commands to the respective joint motors
