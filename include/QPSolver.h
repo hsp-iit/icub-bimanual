@@ -101,7 +101,7 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,                       
 		          << "H matrix was " << H.rows() << "x" << H.cols() << ", "
 		          << "f vector was " << f.size() << "x1, "
 		          << "B matrix was " << B.rows() << "x" << B.cols() << ", "
-		          << "c vector was " << z.size() << "x1, and "
+		          << "z vector was " << z.size() << "x1, and "
 		          << "x0 vector was " << n << "x1." << std::endl;
 		          
 		return x0;
