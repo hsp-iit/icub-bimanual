@@ -138,7 +138,7 @@ bool CartesianTrajectory::get_state(yarp::sig::Matrix &pose,
 		
 		// Now construct the homogeneous transformation matrix
 		pose.resize(4,4); pose.eye();                                                       // Set to 4x4 identity to start
-		for(int i = 0; i < 3; i++) pose[i][4] = pos[i];                                     // Assign the position
+		for(int i = 0; i < 3; i++) pose[i][3] = pos[i];                                     // Assign the position
 		
 		// Convert RPY euler angles to rotation matrix
 		pose[0][0] = cos(rpy[1])*cos(rpy[2]);
