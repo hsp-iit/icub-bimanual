@@ -96,8 +96,6 @@ void iCub2::run()
 			q_d = this->jointTrajectory[i].evaluatePoint(elapsedTime, qdot_d, qddot_d); // Compute the desired state for given time
 			
 			ref[i] = qdot_d + this->kq*(q_d - this->q[i]);                              // Feedforward + feedback control
-			
-			std::cout << "Joint " << i+1 << " tracking error: " << (q_d - this->q[i])*180/M_PI << std::endl;
 
 			/*
 			double minSpeed, maxSpeed;
@@ -131,7 +129,61 @@ void iCub2::run()
 		*/
 		vel = ref;
 	}
-	else std::cout << "Not yet programmed you fool!" << std::endl;
+	else
+	{
+		// Generate the Jacobian
+		Eigen::MatrixXd J(12,this->n);                                                      // Jacobian for both hands
+		Eigen::MatrixXd subJ(6,6+this->n);                                                  // Jacobian for a single hand
+		
+		this->computer.getFrameFreeFloatingJacobian("left", subJ);                          // Get the full left hand Jacobian
+		J.block(0,0,6,this->n) = subJ.block(0,6,6,this->n);                                // Assign to the larger Jacobian
+		if(not this->leftControl) J.block(0,0,6,3).setZero();                               // Remove contribution of torso joints
+		
+		this->computer.getFrameFreeFloatingJacobian("right", subJ);                         // Get the full right hand Jacobian
+		J.block(6,0,6,this->n) = subJ.block(0,6,6,this->n);                                 // Assign the right hand Jacobian
+		if(not this->rightControl) J.block(6,0,6,3).setZero();                              // Remove contribution of torso joints
+		
+		Eigen::MatrixXd Jt = J.transpose();                                                 // Makes calcs a little easier later
+		
+		// Compute the joint inertia matrix, add joint limit avoidance
+		Eigen::MatrixXd M(6+this->n,6+this->n);                                             // Storage location
+		this->computer.getFreeFloatingMassMatrix(M);                                        // Inertia including floating base
+		M = M.block(6,6,this->n,this->n);                                                   // Remove the floating base part
+		
+		for(int i = 0; i < this->n; i++) M(i,i) += get_joint_penalty(i) - 1;                // Add penalty for joint limit avoidance
+		
+		// Compute the relevant hand velocity
+		Eigen::Matrix<double,12,1> xdot; xdot.setZero();                                    // Left hand and right hand
+		yarp::sig::Matrix pose(4,4);                                                        // Desired pose for a hand
+		yarp::sig::Vector poseError(6);                                                     // As it says on the label
+		yarp::sig::Vector vel(6), acc(6);                                                   // Desired velocity and acceleration
+		
+		if(this->leftControl)
+		{
+			this->leftTrajectory.get_state(pose,vel,acc,elapsedTime);                   // Desired state for the given time
+			
+			poseError = get_pose_error(pose, convert_iDynTree_to_yarp(this->computer.getWorldTransform("left")));
+			
+			for(int i = 0; i < 6; i++)
+			{
+				xdot(i) = vel(i);                                                   // Feedforward term
+				for(int j = 0; j < 6; j++) xdot(i) += this->K(i,j)*poseError(j);    // Feedback term
+			}
+		}
+		
+		if(this->rightControl)
+		{
+			this->rightTrajectory.get_state(pose,vel,acc,elapsedTime);
+			poseError = get_pose_error(pose, convert_iDynTree_to_yarp(this->computer.getWorldTransform("right")));
+			
+			for(int i = 0; i < 6; i++)
+			{
+				xdot(i+6) = vel(i);
+				for(int j = 0; j < 6; j++) xdot(i+6) += this->K(i,j)*poseError(j);
+			}
+		}
+		
+	}
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel[i],i);                           // Send commands to the respective joint motors
 }
