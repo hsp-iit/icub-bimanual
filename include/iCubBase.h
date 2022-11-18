@@ -121,8 +121,8 @@ iCubBase::iCubBase(const std::string &fileName,
 		            0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
 		            0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
 	
-	this->K = 100*this->baseMatrix;                                                             // Set the spring forces
-	this->D =  10*this->baseMatrix;                                                             // Set the damping forces
+	this->K = 10*this->baseMatrix;                                                             // Set the spring forces
+	this->D =  5*this->baseMatrix;                                                             // Set the damping forces
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -389,15 +389,16 @@ bool iCubBase::translate(const yarp::sig::Vector &left,
                          const yarp::sig::Vector &right,
                          const double            &time)
 {
-	iDynTree::Position pos = this->computer.getWorldTransform("left").getPosition();
-	yarp::sig::Matrix leftTarget(4,4); leftTarget.eye();
-	for(int i = 0; i < 3; i++) leftTarget(i,3) = pos(i) + left(i);
+	yarp::sig::Matrix leftTarget = convert_iDynTree_to_yarp(this->computer.getWorldTransform("left"));
+	yarp::sig::Matrix rightTarget = convert_iDynTree_to_yarp(this->computer.getWorldTransform("right"));
 	
-	pos = this->computer.getWorldTransform("right").getPosition();
-	yarp::sig::Matrix rightTarget(4,4); rightTarget.eye();
-	for(int i = 0; i < 3; i++) rightTarget(i,3) = pos(i) + right(i);
+	for(int i = 0; i < 3; i++)
+	{
+		leftTarget[i][3]  += left[i];
+		rightTarget[i][3] += right[i];
+	}
 	
-	return move_to_pose(leftTarget,rightTarget,time);
+	return move_to_pose(leftTarget, rightTarget,time);
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -450,8 +451,12 @@ double iCubBase::get_joint_penalty(const int &i)
 	
 	double dpdq = (range*range*(2*this->q[i] - this->pLim[i][1] - this->pLim[i][0])) / (4*upper*upper*lower*lower); // Derivative of penalty
 	
-	if(dpdq*this->qdot[i] > 0) return (range*range)/(4*upper*lower);                            // Penalise motion if moving to limit
-	else                       return 1;                                                        // Don't penalise if moving away
+	if(dpdq*this->qdot[i] > 0)
+	{
+		if(upper <= 1e-10 or lower < 1e-10) return 1e10;
+		else                                return (range*range)/(4*upper*lower);
+	}
+	else                                        return 1;                                       // Don't penalise if moving away
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -472,7 +477,7 @@ yarp::sig::Vector iCubBase::get_pose_error(const yarp::sig::Matrix &desired, con
 	}
 	else
 	{
-		for(int i = 0; i < 3; i++) error(i) = desired(i,4) - actual(i,4);                   // Position/translation error
+		for(int i = 0; i < 3; i++) error(i) = desired(i,3) - actual(i,3);                   // Position/translation error
 		
 		yarp::sig::Matrix Re(3,3); // = desired*actual.transposed()
 		for(int i = 0; i < 3; i++)
