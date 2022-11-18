@@ -59,6 +59,21 @@ int main(int argc, char *argv[])
 			output.addString("Casa");
 			robot.move_to_position(home, short_time);
 		}
+		else if(command == "in")
+		{
+			output.addString("Capito");
+			yarp::sig::Vector left  = {0, -0.05, 0};
+			yarp::sig::Vector right = {0,  0.05, 0};
+			
+			robot.translate(left, right, 2.0);
+		}
+		else if(command == "out")
+		{
+			output.addString("Capito");
+			yarp::sig::Vector left  = {0,  0.05, 0};
+			yarp::sig::Vector right = {0, -0.05, 0};
+			robot.translate(left,right,2.0);
+		}
 		else if(command == "ready")
 		{
 			output.addString("Pronto");
