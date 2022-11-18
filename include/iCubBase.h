@@ -44,6 +44,10 @@ class iCubBase : public yarp::os::PeriodicThread,
 				       const std::vector<double>            &times);
 				       
 		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
+		
+		bool translate(const yarp::sig::Vector &left,                                       // Translate both hands by the given amount
+		               const yarp::sig::Vector &right,
+		               const double &time);
 				      
 		void halt();
 	
@@ -76,9 +80,16 @@ class iCubBase : public yarp::os::PeriodicThread,
 		iDynTree::Vector3            gravity;                                               // Needed for inverse dynamics; not used yet
 			                       	
 		// Internal functions
-		bool update_state();
+		bool update_state();                                                                // Get new joint state, update kinematics
+		
+		yarp::sig::Vector get_pose_error(const yarp::sig::Matrix &desired,
+		                                 const yarp::sig::Matrix &actual);
+		
+		double get_joint_penalty(const int &i);                                             // For joint limit avoidance
 		
 		void get_speed_limits(double &minSpeed, double &maxSpeed, const int &i);            // For joint limit avoidance
+		
+		yarp::sig::Matrix convert_iDynTree_to_yarp(const iDynTree::Transform &T);
 		
 		// Functions related to the PeriodicThread class
 		bool threadInit();
@@ -206,10 +217,37 @@ bool iCubBase::update_state()
 	}
 }
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                Move each hand to a desired pose                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::move_to_pose(const yarp::sig::Matrix &left,
+                            const yarp::sig::Matrix &right,
+                            const double            &time)
+{
+	if(left.rows() != 4 or left.cols() != 4 or right.rows() != 4 or right.cols() != 4)
+	{
+		std::cerr << "[ERROR] [iCUB] move_to_pose(): "
+		          << "Expected 4x4 matrices for the input arguments, "
+		          << "but the left argument was " << left.rows() << "x" << left.cols() << " "
+		          << "and the right argument was " << right.rows() << "x" << right.cols() << "." << std::endl;
+		
+		return false;
+	}
+	else
+	{
+		// Put them in std::vector container and pass onward
+		std::vector<yarp::sig::Matrix> leftPoses; leftPoses.push_back(left);
+		std::vector<yarp::sig::Matrix> rightPoses; rightPoses.push_back(right);
+		std::vector<double> times; times.push_back(time);
+		
+		return move_to_poses(leftPoses,rightPoses,times);
+	}
+}
+
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                          Move both hands through multiple poses                               //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-bool Humanoid::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
+bool iCubBase::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
                              const std::vector<yarp::sig::Matrix> &right,
                              const std::vector<double> &times)
 {
@@ -222,36 +260,20 @@ bool Humanoid::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
 	t.insert(t.end(),times.begin(),times.end());                                                // Add on the rest of the times
 	
 	// Set up the left hand trajectory
-	
-
-      
-      
-bool Humanoid::move_to_poses(const std::vector<iDynTree::Transform> &left,
-                             const std::vector<iDynTree::Transform> &right,
-                             const std::vector<double> &time)
-{
-	if(isRunning()) stop();                                                                     // Stop any control threads that are running
-	this->controlMode = cartesian;                                                              // Activate Cartesian control
-	this->leftControl = true; this->rightControl = true;                                        // Activate both hands
-	
-	// Set up the time trajectory
-	iDynTree::VectorDynSize times(time.size() + 1);
-	times[0] = 0.0;
-	for(int i = 1; i < times.size(); i++) times[i] = time[i-1];
-	
-	// Set up the left hand trajectory
-	std::vector<iDynTree::Transform> waypoint;                                                  // We will have 1 additional waypoint
-	waypoint.push_back(this->computer.getWorldTransform("left"));
-	waypoint.insert(waypoint.end(),left.begin(),left.end());                                    // Add other waypoints to the end
-	this->leftTrajectory = CartesianTrajectory(waypoint, times);
+	yarp::sig::Matrix T = convert_iDynTree_to_yarp(this->computer.getWorldTransform("left"));
+	std::vector<yarp::sig::Matrix> waypoint; waypoint.push_back(T);                             // First waypoint is current pose
+	waypoint.insert(waypoint.end(),left.begin(),left.end());                                    // Add additional waypoints to the end
+	this->leftTrajectory = CartesianTrajectory(waypoint, t);                                    // Create the left-hand trajectory
 	
 	// Set up the right hand trajectory
+	T = convert_iDynTree_to_yarp(this->computer.getWorldTransform("right"));
 	waypoint.clear();
-	waypoint.push_back(this->computer.getWorldTransform("right"));
-	waypoint.insert(waypoint.end(),right.begin(),right.end());
-	this->rightTrajectory = CartesianTrajectory(waypoint, times);
+	waypoint.push_back(T);                                                                      // First waypoint is the current pose
+	waypoint.insert(waypoint.end(),right.begin(),right.end());                                  // Add additional poses to the end
+	this->rightTrajectory = CartesianTrajectory(waypoint,t);                                    // Create new trajectory for the right hand
 	
-	start(); // Jump immediately to threadInit();
+	start(); // Go immediately to threadInit();
+
 	return true;
 }
 
@@ -360,6 +382,23 @@ bool iCubBase::set_joint_gains(const double &proportional, const double &derivat
         	return true;
         }
 }
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                          Translate both hands by the given amount                              //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::translate(const yarp::sig::Vector &left,
+                         const yarp::sig::Vector &right,
+                         const double            &time)
+{
+	iDynTree::Position pos = this->computer.getWorldTransform("left").getPosition();
+	yarp::sig::Matrix leftTarget(4,4); leftTarget.eye();
+	for(int i = 0; i < 3; i++) leftTarget(i,3) = pos(i) + left(i);
+	
+	pos = this->computer.getWorldTransform("right").getPosition();
+	yarp::sig::Matrix rightTarget(4,4); rightTarget.eye();
+	for(int i = 0; i < 3; i++) rightTarget(i,3) = pos(i) + right(i);
+	
+	return move_to_pose(leftTarget,rightTarget,time);
+}
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                               Stop the robot immediately                                       //
@@ -395,6 +434,65 @@ void iCubBase::threadRelease()
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                 Compute the penalty function based on proximity to a joint limit               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+double iCubBase::get_joint_penalty(const int &i)
+{
+	// Chan, T. F., & Dubey, R. V. (1995). A weighted least-norm solution based scheme
+	// for avoiding joint limits for redundant joint manipulators.
+	// IEEE Transactions on Robotics and Automation, 11(2), 286-292.
+	
+	// NOTE: Minimum of penalty function is 1, so subtract 1 if you want 0 penalty at midpoint
+	
+	double lower = this->q[i] - this->pLim[i][0];                                               // Distance from the lower limit
+	double upper = this->pLim[i][1] - this->q[i];                                               // Distance to the upper limit
+	double range = this->pLim[i][1] - this->pLim[i][0];                                         // Distance between limits
+	
+	double dpdq = (range*range*(2*this->q[i] - this->pLim[i][1] - this->pLim[i][0])) / (4*upper*upper*lower*lower); // Derivative of penalty
+	
+	if(dpdq*this->qdot[i] > 0) return (range*range)/(4*upper*lower);                            // Penalise motion if moving to limit
+	else                       return 1;                                                        // Don't penalise if moving away
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                         Get the error between a desired and actual pose                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+yarp::sig::Vector iCubBase::get_pose_error(const yarp::sig::Matrix &desired, const yarp::sig::Matrix &actual)
+{
+	yarp::sig::Vector error(6);
+	
+	if(desired.rows() != 4 or desired.cols() != 4 or actual.rows() != 4 or actual.cols() != 4)
+	{
+		std::cerr << "[ERROR] [iCUB] get_pose_error(): "
+		          << "Expected 4x4 matrices for the input arguments, "
+		          << "but the desired input was " << desired.rows() << "x" << desired.cols() << " "
+		          << "and the actual was " << actual.rows() << "x" << actual.cols() << "." << std::endl;
+		
+		error.zero();
+	}
+	else
+	{
+		for(int i = 0; i < 3; i++) error(i) = desired(i,4) - actual(i,4);                   // Position/translation error
+		
+		yarp::sig::Matrix Re(3,3); // = desired*actual.transposed()
+		for(int i = 0; i < 3; i++)
+		{
+			for(int j = 0; j < 3; j++)
+			{
+				for(int k = 0; k < 3; k++) Re(i,k) = desired(i,j)*actual(k,j);
+			}
+		}
+		
+		// "Unskew" the rotation error
+		error(3) = Re(2,1);
+		error(4) = Re(0,2);
+		error(5) = Re(1,0);
+	}
+	
+	return error;
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                   Get the instantenous speed limits for joint limit avoidance                  //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void iCubBase::get_speed_limits(double &minSpeed, double &maxSpeed, const int &i)
@@ -410,6 +508,22 @@ void iCubBase::get_speed_limits(double &minSpeed, double &maxSpeed, const int &i
 	maxSpeed = std::min( (this->pLim[i][1] - this->q[i])/this->dt,
 	           std::min(  this->vLim[i],
 	                      sqrt(2*maxAcc*(this->pLim[i][1] - this->q[i]))));               
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                   Convert iDynTree::Transform to yarp::sig::Matrix                             //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+yarp::sig::Matrix iCubBase::convert_iDynTree_to_yarp(const iDynTree::Transform &T)
+{
+	iDynTree::Matrix4x4 A = T.asHomogeneousTransform();
+	yarp::sig::Matrix temp(4,4); temp.eye();
+	
+	for(int i = 0; i < 3; i++)
+	{
+		for(int j = 0; j < 4; j++) temp(i,j) = A(i,j);
+	}
+	
+	return temp;
 }
 
 #endif
