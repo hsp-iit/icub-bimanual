@@ -27,7 +27,8 @@ class iCubBase : public yarp::os::PeriodicThread,
 		
 		iCubBase(const std::string &fileName,
 		         const std::vector<std::string> &jointList,
-		         const std::vector<std::string> &portList);
+		         const std::vector<std::string> &portList,
+		         const iDynTree::Transform &_torsoPose);
 		         
 		bool move_to_pose(const yarp::sig::Matrix &left,
 		                  const yarp::sig::Matrix &right,
@@ -42,6 +43,8 @@ class iCubBase : public yarp::os::PeriodicThread,
 
 		bool move_to_positions(const std::vector<yarp::sig::Vector> &positions,             // Move joints through multiple positions
 				       const std::vector<double>            &times);
+				       
+		bool print_hand_pose(const std::string &which);                                     // As it says on the label
 				       
 		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
 		
@@ -102,10 +105,11 @@ class iCubBase : public yarp::os::PeriodicThread,
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 iCubBase::iCubBase(const std::string &fileName,
                    const std::vector<std::string> &jointList,
-                   const std::vector<std::string> &portList) :
+                   const std::vector<std::string> &portList,
+                   const iDynTree::Transform &_torsoPose) :
                    yarp::os::PeriodicThread(0.01),                                                  // Create thread to run at 100Hz
                    JointInterface(jointList, portList),                                             // Communicates with joint motors
-                   torsoPose(iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0), iDynTree::Position(0,0,0.64))),
+                   torsoPose(_torsoPose),
                    torsoTwist(iDynTree::Twist(iDynTree::GeomVector3(0,0,0),iDynTree::GeomVector3(0,0,0)))
 {
 	// Set the gravity vector
@@ -265,6 +269,9 @@ bool iCubBase::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
 	waypoint.insert(waypoint.end(),left.begin(),left.end());                                    // Add additional waypoints to the end
 	this->leftTrajectory = CartesianTrajectory(waypoint, t);                                    // Create the left-hand trajectory
 	
+//	std::cout << "Here are the waypoints for the left hand:" << std::endl;
+//	for(int i = 0; i < waypoint.size(); i++) std::cout << waypoint[i].toString() << "\n" << std::endl;
+	
 	// Set up the right hand trajectory
 	T = convert_iDynTree_to_yarp(this->computer.getWorldTransform("right"));
 	waypoint.clear();
@@ -361,6 +368,30 @@ bool iCubBase::move_to_positions(const std::vector<yarp::sig::Vector> &positions
 		return true;                                                                        // Success
 	}
 }
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                               Print the pose of a hand to the console                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::print_hand_pose(const std::string &which)
+{
+	if(which == "left" or which == "right")
+	{
+		std::cout << "Here is the " << which << " hand pose:" << std::endl;
+		
+		std::cout << this->computer.getWorldTransform(which).asHomogeneousTransform().toString() << std::endl;
+		
+		return true;
+	}
+	else
+	{
+		std::cout << "[ERROR] [iCUB] print_hand_pose(): " 
+		          << "Expected 'left' or 'right' as the argument, "
+		          << "but the input was " << which << "." << std::endl;
+		
+		return false;
+	}
+}
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                            Set the gains for control in the joint space                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -398,6 +429,9 @@ bool iCubBase::translate(const yarp::sig::Vector &left,
 		rightTarget[i][3] += right[i];
 	}
 	
+//	std::cout << "Here is the left hand target pose:" << std::endl;
+//	std::cout << leftTarget.toString() << std::endl;
+
 	return move_to_pose(leftTarget, rightTarget,time);
 }
 
@@ -479,19 +513,19 @@ yarp::sig::Vector iCubBase::get_pose_error(const yarp::sig::Matrix &desired, con
 	{
 		for(int i = 0; i < 3; i++) error(i) = desired(i,3) - actual(i,3);                   // Position/translation error
 		
-		yarp::sig::Matrix Re(3,3); // = desired*actual.transposed()
+		yarp::sig::Matrix Re(3,3); Re.zero(); // = desired*actual.transposed()
 		for(int i = 0; i < 3; i++)
 		{
 			for(int j = 0; j < 3; j++)
 			{
-				for(int k = 0; k < 3; k++) Re(i,k) = desired(i,j)*actual(k,j);
+				for(int k = 0; k < 3; k++) Re[i][k] += desired[i][j]*actual[k][j];
 			}
 		}
 		
 		// "Unskew" the rotation error
-		error(3) = Re(2,1);
-		error(4) = Re(0,2);
-		error(5) = Re(1,0);
+		error(3) = 0; //Re(2,1);
+		error(4) = 0; //Re(0,2);
+		error(5) = 0; //Re(1,0);
 	}
 	
 	return error;
