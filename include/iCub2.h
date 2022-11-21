@@ -30,8 +30,12 @@ class iCub2 : public iCubBase
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 iCub2::iCub2(const std::string &fileName,
              const std::vector<std::string> &jointList,
-             const std::vector<std::string> &portList) :
-             iCubBase(fileName, jointList, portList)
+             const std::vector<std::string> &portList):
+             iCubBase(fileName,
+                      jointList,
+                      portList,
+                      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
+                                          iDynTree::Position(0,0,0)))
 {
 	// Lower the gains since we're running in velocity mode
 	set_joint_gains(5.0, 0.01);                                                                // We don't actually care about the derivative
@@ -163,39 +167,27 @@ void iCub2::run()
 			this->leftTrajectory.get_state(pose,v,a,elapsedTime);                   // Desired state for the given time
 			
 			poseError = get_pose_error(pose, convert_iDynTree_to_yarp(this->computer.getWorldTransform("left")));
-			
-			/*
-			std::cout << "Desired pose:" << std::endl;
-			std::cout << pose.toString() << std::endl;
-			
-			std::cout << "Actual pose:" << std::endl;
-			std::cout << convert_iDynTree_to_yarp(this->computer.getWorldTransform("left")).toString() << std::endl;
-			
-			std::cout << "Left hand pose error:" << std::endl;
+			std::cout << "Pose error:" << std::endl;
 			std::cout << poseError.toString() << std::endl;
-			*/
 			
 			for(int i = 0; i < 3; i++)
 			{
-				xdot(i) = 0.0; v(i);                                                   // Feedforward term
+				xdot(i) = 0.0;                                                      // Feedforward term
 				for(int j = 0; j < 6; j++) xdot(i) += this->K(i,j)*poseError(j);    // Feedback term
 			}
-			
-			std::cout << "Left hand velocity:" << std::endl;
-			std::cout << xdot.head(6).transpose() << std::endl;
 		}
 		
-		if(this->rightControl)
+/*		if(this->rightControl)
 		{
 			this->rightTrajectory.get_state(pose,v,a,elapsedTime);
 			poseError = get_pose_error(pose, convert_iDynTree_to_yarp(this->computer.getWorldTransform("right")));
 			
 			for(int i = 0; i < 6; i++)
 			{
-				xdot(i+6) = v(i);
+				xdot(i+6) = 0.0;
 				for(int j = 0; j < 6; j++) xdot(i+6) += this->K(i,j)*poseError(j);
 			}
-		}
+		}*/
 		
 		// Set up the QP problem
 		
@@ -221,13 +213,13 @@ void iCub2::run()
 		B.block(        0,0,2*this->n+10,      6).setZero();
 		B.block(        0,6,    this->n,this->n) = -Eigen::MatrixXd::Identity(this->n,this->n);
 		B.block(  this->n,6,    this->n,this->n).setIdentity();
-		B.block(2*this->n,6,          5,this->n) = this->A;
+		B.block(2*this->n,6,         10,this->n).setZero();
 		
 		// z = [ -qdot_max ]
 		//     [  qdot_min ]
 		//     [    -b     ]
 		Eigen::VectorXd z(2*this->n+10);
-		z.tail(10) = -this->b;
+		z.tail(10) = -b;
 		
 		Eigen::VectorXd initialGuess(6+this->n);
 		for(int i = 0; i < this->n; i++)
