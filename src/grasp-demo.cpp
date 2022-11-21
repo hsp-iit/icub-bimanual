@@ -62,22 +62,32 @@ int main(int argc, char *argv[])
 		else if(command == "in")
 		{
 			output.addString("Capito");
-			yarp::sig::Vector left  = {0, -0.05, 0};
-			yarp::sig::Vector right = {0,  0.05, 0};
+			yarp::sig::Vector left  = {0, -0.00, 0};
+			yarp::sig::Vector right = {0,  0.00, 0};
 			
-			robot.translate(left, right, 2.0);
+			robot.translate(left, right, 10.0);
+		}
+		else if(command == "left hand pose")
+		{
+			output.addString("Check the other terminal.");
+			robot.print_hand_pose("left");
 		}
 		else if(command == "out")
 		{
 			output.addString("Capito");
 			yarp::sig::Vector left  = {0,  0.05, 0};
 			yarp::sig::Vector right = {0, -0.05, 0};
-			robot.translate(left,right,2.0);
+			robot.translate(left,right,10.0);
 		}
 		else if(command == "ready")
 		{
 			output.addString("Pronto");
 			robot.move_to_position(ready, short_time);
+		}
+		else if(command == "right hand pose")
+		{
+			output.addString("Check the other terminal.");
+			robot.print_hand_pose("right");
 		}
 		else if(command == "shake")
 		{
