@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 	{
 		std::string file = argv[1];                                                         // Get the urdf model path
 		iCub2 robot(file, jointList, portList);
-		
+
 		std::cout << "Success! All done." << std::endl;
 	}
 	
