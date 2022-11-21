@@ -76,15 +76,23 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<yarp::sig::Matrix> &p
 			points[2][i] = poses[i](2,3);                                               // Get the z position
 			
 		 	yarp::sig::Matrix R = poses[i].submatrix(0,2,0,2);                          // Get the rotation matrix
-	
 		 	
-		 	double yaw   = atan2(R(1,0),R(0,0));                                        // Extract the yaw angle
 		 	
-		 	double pitch;
-			if(cos(yaw) == 0) pitch = atan2(-R(2,0),R(1,0)/sin(yaw));
-			else              pitch = atan2(-R(2,0),R(1,1)/cos(yaw));                   // Alternative computation
-			
-		 	points[3][i] = atan2(R(2,1),R(2,2));                                        // Extract the roll angle
+		 	double roll, pitch, yaw;
+		 	if(abs(R[0][2]) != 1)
+		 	{
+				pitch = asin(R[0][2]);
+				roll  = atan2(-R[1][2],R[2][2]);
+				yaw   = atan2(-R[0][1],R[0][0]);
+			}
+			else // Gimbal lock; yaw - roll = atan2(R[1][0],R[1][1])
+			{
+				pitch =-M_PI/2;
+				roll  =-atan2(R[1][0],R[1][1]);
+				yaw   = 0;
+			}
+		 	
+		 	points[3][i] = roll;
 		 	points[4][i] = pitch;
 		 	points[5][i] = yaw;
 		}
