@@ -523,9 +523,9 @@ yarp::sig::Vector iCubBase::get_pose_error(const yarp::sig::Matrix &desired, con
 		}
 		
 		// "Unskew" the rotation error
-		error(3) = 0; //Re(2,1);
-		error(4) = 0; //Re(0,2);
-		error(5) = 0; //Re(1,0);
+		error(3) = Re(2,1);
+		error(4) = Re(0,2);
+		error(5) = Re(1,0);
 	}
 	
 	return error;
