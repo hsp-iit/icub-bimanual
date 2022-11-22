@@ -140,7 +140,7 @@ bool CartesianTrajectory::get_state(yarp::sig::Matrix &pose,
 		
 		for(int i = 0; i < 3; i++)
 		{
-			pos[i] = this->spline[i  ].evaluatePoint(time, vel[i]  , acc[i]);
+			pos[i] = this->spline[ i ].evaluatePoint(time, vel[i]  , acc[i]);
 			rpy[i] = this->spline[i+3].evaluatePoint(time, vel[i+3], acc[i+3]);
 		}
 		
