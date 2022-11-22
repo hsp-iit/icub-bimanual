@@ -6,7 +6,7 @@
 #include <iCub2Configurations.h>
 #include <yarp/os/RpcServer.h>
 
-double long_time = 5.0;
+double long_time  = 5.0;
 double short_time = 2.0;
 
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
@@ -54,6 +54,13 @@ int main(int argc, char *argv[])
 			robot.halt();                                                               // Stop any control threads
 			active = false;
 		}
+		else if(command == "down")
+		{
+			output.addString("Giu'");
+			yarp::sig::Vector left  = {0, 0, -0.075};
+			yarp::sig::Vector right = {0, 0, -0.075};
+			robot.translate(left,right,short_time);
+		}
 		else if(command == "home")
 		{
 			output.addString("Casa");
@@ -62,10 +69,10 @@ int main(int argc, char *argv[])
 		else if(command == "in")
 		{
 			output.addString("Capito");
-			yarp::sig::Vector left  = {0, -0.05, 0};
-			yarp::sig::Vector right = {0,  0.05, 0};
+			yarp::sig::Vector left  = {0, -0.075, 0};
+			yarp::sig::Vector right = {0,  0.075, 0};
 			
-			robot.translate(left, right, 5.0);
+			robot.translate(left, right, short_time);
 		}
 		else if(command == "left hand pose")
 		{
@@ -75,9 +82,9 @@ int main(int argc, char *argv[])
 		else if(command == "out")
 		{
 			output.addString("Capito");
-			yarp::sig::Vector left  = {0,  0.05, 0};
-			yarp::sig::Vector right = {0, -0.05, 0};
-			robot.translate(left,right, 5.0);
+			yarp::sig::Vector left  = {0,  0.075, 0};
+			yarp::sig::Vector right = {0, -0.075, 0};
+			robot.translate(left,right, short_time);
 		}
 		else if(command == "ready")
 		{
@@ -98,6 +105,13 @@ int main(int argc, char *argv[])
 		{
 			output.addString("Fermare");
 			robot.halt();
+		}
+		else if(command == "up")
+		{
+			output.addString("Su");
+			yarp::sig::Vector left  = {0, 0, 0.075};
+			yarp::sig::Vector right = {0, 0, 0.075};
+			robot.translate(left,right,short_time);
 		}
 		else if(command == "wave")
 		{
