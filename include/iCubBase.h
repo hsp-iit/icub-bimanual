@@ -19,24 +19,24 @@
 #include <yarp/os/PeriodicThread.h>                                                                 // Keeps timing of the control loop
 #include <yarp/sig/Vector.h>
 
-class iCubBase : public yarp::os::PeriodicThread,
-                 public JointInterface,
-                 public QPSolver
+class iCubBase : public yarp::os::PeriodicThread,                                                   // Regulates the control loop
+                 public JointInterface,                                                             // Communicates with motor controllers
+                 public QPSolver                                                                    // Used to solve joint control
 {
 	public:
 		
 		iCubBase(const std::string &fileName,
 		         const std::vector<std::string> &jointList,
 		         const std::vector<std::string> &portList,
-		         const iDynTree::Transform &_torsoPose);
+		         const iDynTree::Transform      &_torsoPose);
 		         
 		bool move_to_pose(const yarp::sig::Matrix &left,
 		                  const yarp::sig::Matrix &right,
-		                  const double &time);
+		                  const double            &time);
 		         
 		bool move_to_poses(const std::vector<yarp::sig::Matrix> &left,
 		                   const std::vector<yarp::sig::Matrix> &right,
-		                   const std::vector<double> &times);
+		                   const std::vector<double>            &times);
 		         
 		bool move_to_position(const yarp::sig::Vector &position,                            // Move joints to given position in a given time
 		                      const double            &time);
@@ -45,12 +45,14 @@ class iCubBase : public yarp::os::PeriodicThread,
 				       const std::vector<double>            &times);
 				       
 		bool print_hand_pose(const std::string &which);                                     // As it says on the label
+		
+		bool set_cartesian_gains(const double &stiffness, const double &damping);
 				       
 		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
 		
 		bool translate(const yarp::sig::Vector &left,                                       // Translate both hands by the given amount
 		               const yarp::sig::Vector &right,
-		               const double &time);
+		               const double            &time);
 				      
 		void halt();
 	
@@ -74,7 +76,7 @@ class iCubBase : public yarp::os::PeriodicThread,
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Individual trajectories for left, right hand
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
-		Eigen::Matrix<double,6,6> baseMatrix;
+		Eigen::Matrix<double,6,6> gainMatrix;
 		
 		// Kinematics & dynamics
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
@@ -118,15 +120,15 @@ iCubBase::iCubBase(const std::string &fileName,
 	this->gravity(2) = -9.81;
 
 	// Set the Cartesian control gains	
-	this->baseMatrix << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
+	this->gainMatrix << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
 		            0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
 		            0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
 		            0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
 		            0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
 		            0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
 	
-	this->K = 10*this->baseMatrix;                                                             // Set the spring forces
-	this->D =  5*this->baseMatrix;                                                             // Set the damping forces
+	this->K = 10*this->gainMatrix;                                                             // Set the spring forces
+	this->D =  5*this->gainMatrix;                                                             // Set the damping forces
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -140,13 +142,23 @@ iCubBase::iCubBase(const std::string &fileName,
 	{
 		// Get the model and add some additional frames for the hands
 		iDynTree::Model temp = loader.model();
+		
 		temp.addAdditionalFrameToLink("l_hand", "left",
-					      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
-								  iDynTree::Position(0,0,-0.06	)));
+		                              iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
+		                                                  iDynTree::Position(0.06,0,0)));
+		                                                  
 		temp.addAdditionalFrameToLink("r_hand", "right",
-					      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
-					      			  iDynTree::Position(0,0,-0.06)));
-							    
+		                              iDynTree::Transform(iDynTree::Rotation::RPY(0,0,M_PI),
+		                                                  iDynTree::Position(-0.06,0,0)));
+		
+		// NOTE: These worked for iCub3. Need to add an option to change these based on
+		// the robot model.
+//		temp.addAdditionalFrameToLink("l_hand", "left",
+//					      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
+//								  iDynTree::Position(0,0,-0.06	)));
+//		temp.addAdditionalFrameToLink("r_hand", "right",
+//					      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
+//					      			  iDynTree::Position(0,0,-0.06)));	    
 		if(not this->computer.loadRobotModel(temp))
 		{
 			std::cerr << "[ERROR] [ICUB] Constructor: "
@@ -269,9 +281,6 @@ bool iCubBase::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
 	waypoint.insert(waypoint.end(),left.begin(),left.end());                                    // Add additional waypoints to the end
 	this->leftTrajectory = CartesianTrajectory(waypoint, t);                                    // Create the left-hand trajectory
 	
-//	std::cout << "Here are the waypoints for the left hand:" << std::endl;
-//	for(int i = 0; i < waypoint.size(); i++) std::cout << waypoint[i].toString() << "\n" << std::endl;
-	
 	// Set up the right hand trajectory
 	T = convert_iDynTree_to_yarp(this->computer.getWorldTransform("right"));
 	waypoint.clear();
@@ -393,6 +402,29 @@ bool iCubBase::print_hand_pose(const std::string &which)
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                           Set the gains for control in Cartesian space                         //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_cartesian_gains(const double &stiffness, const double &damping)
+{
+	if(stiffness <= 0 or damping <= 0)
+	{
+		std::cerr << "[ERROR] [iCUB] set_cartesian_gains(): "
+		          << "Gains cannot be negative! "
+		          << "You input " << stiffness << " for the stiffness gain, "
+		          << "and " << damping << " for the damping gain." << std::endl;
+		
+		return false;
+	}
+	else
+	{	
+		this->K = stiffness*this->gainMatrix;
+		this->D =   damping*this->gainMatrix;
+		
+		return true;
+	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                            Set the gains for control in the joint space                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool iCubBase::set_joint_gains(const double &proportional, const double &derivative)
@@ -425,12 +457,9 @@ bool iCubBase::translate(const yarp::sig::Vector &left,
 	
 	for(int i = 0; i < 3; i++)
 	{
-		leftTarget[i][3]  += left[i];
+		 leftTarget[i][3] +=  left[i];
 		rightTarget[i][3] += right[i];
 	}
-	
-//	std::cout << "Here is the left hand target pose:" << std::endl;
-//	std::cout << leftTarget.toString() << std::endl;
 
 	return move_to_pose(leftTarget, rightTarget,time);
 }
@@ -536,7 +565,7 @@ yarp::sig::Vector iCubBase::get_pose_error(const yarp::sig::Matrix &desired, con
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void iCubBase::get_speed_limits(double &minSpeed, double &maxSpeed, const int &i)
 {
-	double maxAcc = 50;
+	double maxAcc = 10;
 	
 	// Compute lower limit
 	minSpeed = std::max( (this->pLim[i][0] - this->q[i])/this->dt,
