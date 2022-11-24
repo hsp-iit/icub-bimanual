@@ -13,8 +13,14 @@ class iCub2 : public iCubBase
 	
 	private:
 		// Shoulder constraints
-		Eigen::Matrix<double,10,17> A;
+		Eigen::MatrixXd A;
 		Eigen::Matrix<double,10,1>  b;
+		
+		// General constraint matrices for QP solver
+		Eigen::MatrixXd B, Bsub;
+		Eigen::VectorXd z;
+		
+		Eigen::VectorXd setPoint; // Desired joint configuration
 		
 		void run();                                                                         // Main control loop
 			
@@ -35,6 +41,7 @@ iCub2::iCub2(const std::string &fileName,
 {
 	// Lower the gains since we're running in velocity mode
 	set_joint_gains(5.0, 0.01);                                                                 // We don't actually care about the derivative
+	set_cartesian_gains(10.0, 0.01);
 	
 	// Set the constraints for the iCub2 shoulder tendons.
 	// A *single* arm is constrained by
@@ -42,7 +49,7 @@ iCub2::iCub2(const std::string &fileName,
 	// but we have two arms so we need to double up the constraint matrix.
 	
 	double c = 1.71;
-	this->A.setZero();
+	this->A = Eigen::MatrixXd::Zero(10,this->n);
 	this->A.block(0,3,5,3) <<  c, -c,  0,
 	                           c, -c, -c,
 	                           0,  1,  1,
@@ -51,17 +58,48 @@ iCub2::iCub2(const std::string &fileName,
 	                           
 	this->A.block(5,10,5,3) = this->A.block(0,3,5,3);                                           // Same constraint for right arm as left arm
 	
-	this->b.head(5) << 347.00,
-	                   366.57,
-	                    66.60,
-	                   112.42,
-	                   213.30;
+	this->b.head(5) << 347.00*(M_PI/180),
+	                   366.57*(M_PI/180),
+	                    66.60*(M_PI/180),
+	                   112.42*(M_PI/180),
+	                   213.30*(M_PI/180);
 	                   
 	this->b.tail(5) = this->b.head(5);                                                          // Same constraint for the right arm as the left arm
 	
-	this->b *= M_PI/180;                                                                        // Convert from degrees to radians
+	// In discrete time we have:
+	// dt*A*qdot >= -(A*q + b)
 	
-	// Note: z is dynamic, so there's no point setting it here
+	// Set the general constraint matrix B*qdot > z for the QP solver
+	// Bsub = [  -I  ]
+	//        [   I  ]
+	//        [ dt*A ]
+	this->Bsub.resize(10+2*this->n,this->n);
+	
+	this->Bsub.block(        0,0,this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
+	this->Bsub.block(  this->n,0,this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
+	this->Bsub.block(2*this->n,0,     10,this->n) = this->A*this->dt;
+	
+	// B = [ 0 Bsub ]
+	this->B = Eigen::MatrixXd::Zero(10+2*this->n,12+this->n);
+	this->B.block(0,12,10+2*this->n,this->n) = this->Bsub;
+	
+	// The z vector is state-dependent, so there's no point setting it here:
+	// z = [ -qdot_max  ]
+	//     [  qdot_min  ]
+	//     [ -(A*q + b) ]
+	this->z.resize(10+2*this->n);
+	
+	// Set the desired configuration for the arms when running in Cartesian mode
+	this->setPoint.resize(this->n);
+	this->setPoint.head(3).setZero();                                                           // Torso joints -> stay upright if possible
+	this->setPoint(3) = -0.5;
+	this->setPoint(4) =  0.5;
+	this->setPoint(5) =  0.5;
+	this->setPoint(6) =  0.9;                                                                   // Elbow
+	this->setPoint(7) = -0.5;
+	this->setPoint(8) = -0.1;
+	this->setPoint(9) =  0.0;
+	this->setPoint.tail(7) = this->setPoint.block(3,0,7,1);
 	
 }
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -82,11 +120,27 @@ void iCub2::run()
 		
 		for(int i = 0; i < this->n; i++)
 		{
-			q_d = this->jointTrajectory[i].evaluatePoint(elapsedTime, qdot_d, qddot_d); // Compute the desired state for given time
+			// Compute the feedforward + feedback control for the ith joint
+			q_d = this->jointTrajectory[i].evaluatePoint(elapsedTime, qdot_d, qddot_d); // Desired state for given time
 			
 			ref[i] = qdot_d + this->kq*(q_d - this->q[i]);                              // Feedforward + feedback control
+			
+			// Solve for initial guess and instantaneous joint limits
+			double minSpeed, maxSpeed;
+			get_speed_limits(minSpeed, maxSpeed, i);
+			
+			this->z(i)         =-maxSpeed;
+			this->z(i+this->n) = minSpeed;
+			
+			initialGuess(i) = 0.5*(minSpeed + maxSpeed);
 		}
-		vel = ref;
+		this->z.tail(10) = -(this->A*this->q + this->b);
+
+		vel = solve(Eigen::MatrixXd::Identity(this->n,this->n),                             // H
+			    -ref,                                                                   // f
+			     this->Bsub,                                                            // "B" without lagrange multipliers
+			     this->z,                                                               // z
+			     initialGuess);                                                         // Starting point for solver
 	}
 	else
 	{
@@ -107,42 +161,43 @@ void iCub2::run()
 		// Compute the joint inertia matrix, add joint limit avoidance
 		Eigen::MatrixXd M(6+this->n,6+this->n);                                             // Storage location
 		this->computer.getFreeFloatingMassMatrix(M);                                        // Inertia including floating base
-		M = M.block(6,6,this->n,this->n);                                                   // Remove the floating base part
 		
-		for(int i = 0; i < this->n; i++) M(i,i) += get_joint_penalty(i) - 1;                // Add penalty for joint limit avoidance
+		Eigen::MatrixXd W = M.block(6,6,this->n,this->n);                                   // Remove the floating base part
+		for(int i = 0; i < this->n; i++) W(i,i) += get_joint_penalty(i) - 1;                // Add penalty for joint limit avoidance
 		
 		// Compute the relevant hand velocity
 		Eigen::Matrix<double,12,1> xdot; xdot.setZero();                                    // Left hand and right hand
 		yarp::sig::Matrix pose(4,4);                                                        // Desired pose for a hand
 		yarp::sig::Vector poseError(6);                                                     // As it says on the label
 		yarp::sig::Vector v(6), a(6);                                                       // Desired velocity and acceleration
-		iDynTree::Transform T;
+		iDynTree::Transform T;                                                              // Temporary storage
 		
+		// NOTE TO SELF: There's probably a neater way to do this
 		if(this->leftControl)
 		{
-			this->leftTrajectory.get_state(pose,v,a,elapsedTime);
-			T = this->computer.getWorldTransform("left");
+			this->leftTrajectory.get_state(pose,v,a,elapsedTime);                       // Get desired state
 			
-			poseError = get_pose_error(pose,convert_iDynTree_to_yarp(T));
+			T = this->computer.getWorldTransform("left");                               // Current hand pose
 			
-			for(int i = 0; i < 6; i++) xdot[i] = v[i] + 2.0*poseError[i];
+			poseError = get_pose_error(pose,convert_iDynTree_to_yarp(T));               // Pose eror
+			
+			for(int i = 0; i < 6; i++) xdot[i] = v[i] + this->K(i,i)*poseError[i];     // Feedback control
 		}
 
 		if(this->rightControl)
 		{
-			this->rightTrajectory.get_state(pose,v,a,elapsedTime);
+			this->rightTrajectory.get_state(pose,v,a,elapsedTime);                   
+			
 			T = this->computer.getWorldTransform("right");
 			
 			poseError = get_pose_error(pose,convert_iDynTree_to_yarp(T));
 			
-			for(int i = 0; i < 6; i++) xdot[i+6] = v[i] + 2.0*poseError[i];
+			for(int i = 0; i < 6; i++) xdot[i+6] = v[i] + this->K(i,i)*poseError[i];
 		}
 		
 		// Variables needed for the QP solver
 		Eigen::MatrixXd H(12+this->n,12+this->n);
 		Eigen::VectorXd f(12+this->n);
-		Eigen::MatrixXd B(2*this->n,12+this->n);
-		Eigen::VectorXd z(2*this->n);
 		Eigen::VectorXd initialGuess(12+this->n);
 		
 		// H = [ 0   J ]
@@ -152,35 +207,30 @@ void iCub2::run()
 		H.block(12, 0,this->n,     12) = Jt;
 		H.block(12,12,this->n,this->n) = M;
 		
-		// f = [ -xdot ]
-		//     [  0   ]
-		f.head(12) = -xdot;
-		f.tail(this->n) = Eigen::VectorXd::Zero(this->n);
-		
-		// B = [ 0  -I ]
-		//     [ 0   I ]
-		B.block(0,0,2*this->n,12).setZero();
-		B.block(0,12,this->n,this->n) = -Eigen::MatrixXd::Identity(this->n,this->n);
-		B.block(this->n,12,this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);	
-			
-		// z = [ -vMax ]
-		//     [  vMin ]
-		
-		initialGuess.head(12) = (J*M.inverse()*Jt).partialPivLu().solve(-xdot);
+		// f = [   xdot    ]
+		//     [ redundant ]
+		f.head(12)      = xdot;                                                        
+		f.tail(this->n) = 0.1*(this->setPoint - this->q);
+
+
+		initialGuess.head(12) = (J*M.inverse()*Jt).partialPivLu().solve(-xdot);             // Lagrange multipliers
 		for(int i = 0; i < this->n; i++)		
 		{
 			double minSpeed, maxSpeed;
 			get_speed_limits(minSpeed,maxSpeed,i);
-			z(i) = -maxSpeed;
-			z(i+this->n) = minSpeed;
+			this->z(i)         =-maxSpeed;
+			this->z(i+this->n) = minSpeed;
 			
-			initialGuess(12+i) = 0.5*(minSpeed + maxSpeed);
+			initialGuess(12+i) = 0.5*(minSpeed + maxSpeed);                             // Halfway between limits for QP solver
 		}
-
-		Eigen::VectorXd solution = solve(H,f,B,z,initialGuess);
+		this->z.tail(10) = -(this->A*this->q + this->b);
 		
-		vel = solution.tail(this->n);
+		// NOTE TO SELF: Be sure to NEGATE f here, otherwise it will diverge
+		vel = (solve(H,-f,this->B,this->z,initialGuess)).tail(this->n);                     // We don't care about the Lagrange multipliers
 	}
+	
+//	std::cout << "Distance to constraint:" << std::endl;
+//	std::cout << this->A*this->q + this->b << std::endl;
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel[i],i);                           // Send commands to the respective joint motors
 }
