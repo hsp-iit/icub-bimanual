@@ -17,8 +17,8 @@ class iCub2 : public iCubBase
 		Eigen::Matrix<double,10,1>  b;
 		
 		// General constraint matrices for QP solver
-		Eigen::MatrixXd B, Bsub;
-		Eigen::VectorXd z;
+		Eigen::MatrixXd constraintMatrix;
+		Eigen::VectorXd constraintVector;
 		
 		Eigen::VectorXd setPoint; // Desired joint configuration
 		
@@ -64,30 +64,25 @@ iCub2::iCub2(const std::string &fileName,
 	                   112.42*(M_PI/180),
 	                   213.30*(M_PI/180);
 	                   
-	this->b.tail(5) = this->b.head(5);                                                          // Same constraint for the right arm as the left arm
+	this->b.tail(5) = this->b.head(5);                                                          // Same constraint for the right arm
 	
 	// In discrete time we have:
 	// dt*A*qdot >= -(A*q + b)
 	
-	// Set the general constraint matrix B*qdot > z for the QP solver
-	// Bsub = [  -I  ]
-	//        [   I  ]
-	//        [ dt*A ]
-	this->Bsub.resize(10+2*this->n,this->n);
+	// The constraint matrix is unique to iCub2.
+	// constraintMatrix = [ 0   -I ]
+	//                    [ 0    I ]
+	//                    [ 0 dt*A ]
+	this->constraintMatrix.resize(10+2*this->n,12+this->n);                                     // 2*n for joint limits, 10 for shoulder limits
+	this->constraintMatrix.block(        0, 0,10+2*this->n,12)      = Eigen::MatrixXd::Zero(10+2*this->n,12);
+	this->constraintMatrix.block(        0,12,     this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
+	this->constraintMatrix.block(  this->n,12,     this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
+	this->constraintMatrix.block(2*this->n,12,          10,this->n) = this->dt*this->A;
 	
-	this->Bsub.block(        0,0,this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
-	this->Bsub.block(  this->n,0,this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
-	this->Bsub.block(2*this->n,0,     10,this->n) = this->A*this->dt;
-	
-	// B = [ 0 Bsub ]
-	this->B = Eigen::MatrixXd::Zero(10+2*this->n,12+this->n);
-	this->B.block(0,12,10+2*this->n,this->n) = this->Bsub;
-	
-	// The z vector is state-dependent, so there's no point setting it here:
-	// z = [ -qdot_max  ]
-	//     [  qdot_min  ]
-	//     [ -(A*q + b) ]
-	this->z.resize(10+2*this->n);
+	// constraintVector = [ -qdot_max ]
+	//           [  qdot_min ]
+	//           [-(A*q + b) ]
+	this->constraintVector.resize(10+2*this->n);                                                // Vector is dynamic, so no need to set it here
 	
 	// Set the desired configuration for the arms when running in Cartesian mode
 	this->setPoint.resize(this->n);
@@ -107,7 +102,52 @@ iCub2::iCub2(const std::string &fileName,
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void iCub2::run()
 {
+	update_state();                                                                             // Update kinematics, dynamics, constraints
+	
+	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since start of control loop
+	
+	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
+	
+	this->constraintVector.head(2*this->n) = this->z;                    			    // Upper and lower limits on joints
+	this->constraintVector.tail(10)        =-(this->A*this->q + this->b);                       // Shoulder constraints for iCub2
+		
+	if(this->controlSpace == joint)
+	{	
+		Eigen::VectorXd ref = track_joint_trajectory(elapsedTime);                          // Get the reference velocity
+		
+		// min 0.5*(qdot_ref - qdot)'*(qdot_ref - qdot)
+		// subject to: B*qdot > z
+		vel = solve(Eigen::MatrixXd::Identity(this->n,this->n),                             // H
+		           -ref,                                                                    // f
+		            this->constraintMatrix.block(0,12,10+2*this->n,this->n)                 // B
+		            this->constraintVector,                                                 // z
+		            this->x0);                                                              // Initial guess for solver
+	}
+	else if(this->controlSpace == cartesian)
+	{
+		Eigen::VectorXd ref = track_cartesian_trajectory(elapsedTime);                      // Get the Cartesian velocity vector
+		
+		// min (qdot_0 - qdot)'*M*(qdot_0 - qdot)
+		// subject to: J*qdot = x
+		//             B*qdot > z
+		
+		vel = solve(this->H,
+		            this->f,
+		            this->constraintMatrix,                                                 // Unique to iCub2
+		            this->constraintVector,                                                 // Unique to iCub2
+			    initialGuess);
+			    
+		
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB2] run(): "
+		          << "Control space incorrectly specified! How did that happen?" << std::endl;
+	}
+
+/*
 	update_state();                                                                             // Read joints, update kinematics
+	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Compute time since start of control thread
 	
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
@@ -233,4 +273,5 @@ void iCub2::run()
 //	std::cout << this->A*this->q + this->b << std::endl;
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel[i],i);                           // Send commands to the respective joint motors
+*/
 }

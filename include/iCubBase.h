@@ -59,12 +59,13 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 	protected:
 	
 		double dt = 0.01;                                                                   // Default control frequency
-		
+		double maxAcc = 10;
 		double startTime;                                                                   // Used for timing the control loop
 		
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
 		
-		enum ControlMode {joint, cartesian, grasp} controlMode;                             // Defines the different control modes
+		enum ControlSpace {joint, cartesian} controlSpace;
+		enum ControlMode  {velocity, torque} controlMode;
 		
 		// Joint control properties
 		double kq = 10.0;                                                                   // Feedback on joint position error
@@ -76,23 +77,29 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Individual trajectories for left, right hand
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
-		Eigen::Matrix<double,6,6> gainMatrix;
+		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
 		
 		// Kinematics & dynamics
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
 		iDynTree::Transform          torsoPose;                                             // Needed for inverse dynamics; not used yet
 		iDynTree::Twist              torsoTwist;                                            // Needed for inverse dynamics; not used yet
 		iDynTree::Vector3            gravity;                                               // Needed for inverse dynamics; not used yet
+		
+		// Variables for the QP solver
+		Eigen::MatrixXd H, B;
+		Eigen::VectorXd f, z;
 			                       	
 		// Internal functions
+		bool get_speed_limits(double &lower, double &upper, const int &i);                  // Get velocity/acceleration limits
+		
 		bool update_state();                                                                // Get new joint state, update kinematics
+		                                 
+		Eigen::VectorXd track_joint_trajectory();                                           // Solve feedforward + feedback control         
+		
+		Eigen::VectorXd track_cartesian_trajectory();                                       // Solve feedforward + feedback control
 		
 		yarp::sig::Vector get_pose_error(const yarp::sig::Matrix &desired,
-		                                 const yarp::sig::Matrix &actual);
-		
-		double get_joint_penalty(const int &i);                                             // For joint limit avoidance
-		
-		void get_speed_limits(double &minSpeed, double &maxSpeed, const int &i);            // For joint limit avoidance
+		                                 const yarp::sig::Matrix &actual);                  // As it says on the label
 		
 		yarp::sig::Matrix convert_iDynTree_to_yarp(const iDynTree::Transform &T);
 		
@@ -127,8 +134,24 @@ iCubBase::iCubBase(const std::string &fileName,
 		            0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
 		            0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
 	
-	this->K = 10*this->gainMatrix;                                                             // Set the spring forces
-	this->D =  5*this->gainMatrix;                                                             // Set the damping forces
+	this->K = 10*this->gainMatrix;                                                              // Set the spring forces
+	this->D =  5*this->gainMatrix;                                                              // Set the damping forces
+	
+	// Set the constraint matrices for the QP solver
+	// B = [ 0  -I ]
+	//     [ 0   I ]
+	this->B.resize(2*this->n,12+this->n);
+	
+	this->B.block(      0, 0,this->n,     12) = Eigen::MatrixXd::Zero(this->n,12);
+	this->B.block(      0,12,this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
+	this->B.block(this->n, 0,this->n,     12) = Eigen::MatrixXd::Zero(this->n,12);
+	this->B.block(this->n,12,this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
+	
+	// z = [ -qdot_max ]
+	//     [  qdot_min ]
+	this->z.resize(2*this->n); // NOTE: this vector is dynamic, so there's no point setting it here
+	
+	this->initialGuess.resize(this->n);                                                         // For the QP solver
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -189,51 +212,6 @@ iCubBase::iCubBase(const std::string &fileName,
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                         Update the kinematics & dynamics of the robot                          //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::update_state()
-{
-	if(JointInterface::read_encoders())
-	{
-		// NOTE TO SELF: There is probably a smarter way to do this...
-		
-		// Get the values from the JointInterface class
-		std::vector<double> temp_position = get_joint_positions();
-		std::vector<double> temp_velocity = get_joint_velocities();
-		
-		for(int i = 0; i < this->n; i++)
-		{
-			this->q[i]    = temp_position[i];
-			this->qdot[i] = temp_velocity[i];
-		}
-		
-		// Put them in to the iDynTree class to solve all the physics
-		if(this->computer.setRobotState(this->torsoPose,
-		                                iDynTree::VectorDynSize(temp_position),
-		                                this->torsoTwist,
-		                                iDynTree::VectorDynSize(temp_velocity),
-		                                this->gravity))
-		{
-			return true;
-		}
-		else
-		{
-			std::cerr << "[ERROR] [ICUB] update_state(): "
-				  << "Could not set state for the iDynTree::iKinDynComputations object." << std::endl;
-				  
-			return false;
-		}
-	}
-	else
-	{
-		std::cerr << "[ERROR] [ICUB] update_state(): "
-			  << "Could not update state from the JointInterface class." << std::endl;
-			  
-		return false;
-	}
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                Move each hand to a desired pose                                //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool iCubBase::move_to_pose(const yarp::sig::Matrix &left,
@@ -268,7 +246,7 @@ bool iCubBase::move_to_poses(const std::vector<yarp::sig::Matrix> &left,
                              const std::vector<double> &times)
 {
 	if(isRunning()) stop();                                                                     // Stop any control threads that are running
-	this->controlMode = cartesian;                                                              // Switch to Cartesian control mode
+	this->controlSpace = cartesian;                                                             // Switch to Cartesian control mode
 	this->leftControl = true; this->rightControl = true;                                        // Activate both hands
 	
 	// Set up the times for the trajectory
@@ -310,9 +288,7 @@ bool iCubBase::move_to_position(const yarp::sig::Vector &position,
 	else
 	{
 		std::vector<yarp::sig::Vector> target; target.push_back(position);                  // Insert in to std::vector to pass onward
-		
 		std::vector<double> times; times.push_back(time);                                   // Time in which to reach the target position
-		
 		return move_to_positions(target,times);                                             // Call "main" function
 	}
 }
@@ -334,11 +310,8 @@ bool iCubBase::move_to_positions(const std::vector<yarp::sig::Vector> &positions
 	else
 	{
 		if(isRunning()) stop();                                                             // Stop any control thread that might be running
-		
-		this->controlMode = joint;                                                          // Switch to joint control mode
-		
+		this->controlSpace = joint;                                                         // Switch to joint control mode
 		int m = positions.size() + 1;                                                       // We need to add 1 extra waypoint for the start
-		
 		iDynTree::VectorDynSize waypoint(m);                                                // All the waypoints for a single joint
 		iDynTree::VectorDynSize t(m);                                                       // Times to reach the waypoints
 		
@@ -386,9 +359,8 @@ bool iCubBase::print_hand_pose(const std::string &which)
 	if(which == "left" or which == "right")
 	{
 		std::cout << "Here is the " << which << " hand pose:" << std::endl;
-		
 		std::cout << this->computer.getWorldTransform(which).asHomogeneousTransform().toString() << std::endl;
-		
+
 		return true;
 	}
 	else
@@ -452,7 +424,7 @@ bool iCubBase::translate(const yarp::sig::Vector &left,
                          const yarp::sig::Vector &right,
                          const double            &time)
 {
-	yarp::sig::Matrix leftTarget = convert_iDynTree_to_yarp(this->computer.getWorldTransform("left"));
+	yarp::sig::Matrix leftTarget  = convert_iDynTree_to_yarp(this->computer.getWorldTransform("left"));
 	yarp::sig::Matrix rightTarget = convert_iDynTree_to_yarp(this->computer.getWorldTransform("right"));
 	
 	for(int i = 0; i < 3; i++)
@@ -488,38 +460,21 @@ bool iCubBase::threadInit()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void iCubBase::threadRelease()
 {
-	std::vector<double> command;
-	for(int i = 0; i < this->n; i++) command.push_back(0.0);                                    // Set all as zero
-	send_velocity_commands(command);                                                            // Pass on to JointInterface
-	
-//      This is for when running in torque mode:
-//	this->computer.generalizedGravityForces(this->generalForces);
-//      send_torque_commands(this->generalForces.jointTorques();
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                 Compute the penalty function based on proximity to a joint limit               //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-double iCubBase::get_joint_penalty(const int &i)
-{
-	// Chan, T. F., & Dubey, R. V. (1995). A weighted least-norm solution based scheme
-	// for avoiding joint limits for redundant joint manipulators.
-	// IEEE Transactions on Robotics and Automation, 11(2), 286-292.
-	
-	// NOTE: Minimum of penalty function is 1, so subtract 1 if you want 0 penalty at midpoint
-	
-	double lower = this->q[i] - this->pLim[i][0];                                               // Distance from the lower limit
-	double upper = this->pLim[i][1] - this->q[i];                                               // Distance to the upper limit
-	double range = this->pLim[i][1] - this->pLim[i][0];                                         // Distance between limits
-	
-	double dpdq = (range*range*(2*this->q[i] - this->pLim[i][1] - this->pLim[i][0])) / (4*upper*upper*lower*lower); // Derivative of penalty
-	
-	if(dpdq*this->qdot[i] > 0)
+	if(this->controlMode == velocity)
 	{
-		if(upper <= 1e-10 or lower < 1e-10) return 1e10;
-		else                                return (range*range)/(4*upper*lower);
+		std::vector<double> command;
+		for(int i = 0; i < this->n; i++) command.push_back(0.0);                            // Set all as zero
+		send_velocity_commands(command);                                                    // Pass on to JointInterface
 	}
-	else                                        return 1;                                       // Don't penalise if moving away
+	else if(this->controlMode == torque)
+	{
+		std::cerr << "This hasn't been programmed yet you fool!" << std::endl;
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB] threadRelease(): "
+		          << "Control mode incorrectly specified! How did that happen?" << std::endl;
+	}
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -563,19 +518,151 @@ yarp::sig::Vector iCubBase::get_pose_error(const yarp::sig::Matrix &desired, con
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                   Get the instantenous speed limits for joint limit avoidance                  //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-void iCubBase::get_speed_limits(double &minSpeed, double &maxSpeed, const int &i)
+bool iCubBase::get_speed_limits(double &lower, double &upper, const int &i)
 {
-	double maxAcc = 10;
+	if(this->controlMode == velocity)
+	{
+		// Compute lower limit
+		minSpeed = std::max( (this->pLim[i][0] - this->q[i])/this->dt,
+			   std::max( -this->vLim[i],
+			             -sqrt(2*maxAcc*(this->q[i] - this->pLim[i][0]))));
+			      
+		// Compute upper limit
+		maxSpeed = std::min( (this->pLim[i][1] - this->q[i])/this->dt,
+			   std::min(  this->vLim[i],
+			              sqrt(2*maxAcc*(this->pLim[i][1] - this->q[i]))));
+			              
+		return true;
+	}
+	else if(this->controlMode == torque)
+	{
+		std::cerr << "This hasn't been programmed yet you fool!" << std::endl;
+		
+		return false;
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB] get_speed_limits(): "
+		          << "Control mode incorrectly specified! How did that happen?" << std::endl;
 	
-	// Compute lower limit
-	minSpeed = std::max( (this->pLim[i][0] - this->q[i])/this->dt,
-	           std::max( -this->vLim[i],
-	                     -sqrt(2*maxAcc*(this->q[i] - this->pLim[i][0]))));
-	              
-	// Compute upper limit
-	maxSpeed = std::min( (this->pLim[i][1] - this->q[i])/this->dt,
-	           std::min(  this->vLim[i],
-	                      sqrt(2*maxAcc*(this->pLim[i][1] - this->q[i]))));               
+		return false;
+	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                         Update the kinematics & dynamics of the robot                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::update_state()
+{
+	if(JointInterface::read_encoders())
+	{	
+		// Get the values from the JointInterface class (is there a smarter way???)
+		std::vector<double> temp_position = get_joint_positions();
+		std::vector<double> temp_velocity = get_joint_velocities();
+		
+		for(int i = 0; i < this->n; i++)
+		{
+			this->q[i]    = temp_position[i];
+			this->qdot[i] = temp_velocity[i];
+		}
+		
+		// Put them in to the iDynTree class to solve all the physics
+		if(this->computer.setRobotState(this->torsoPose,
+		                                iDynTree::VectorDynSize(temp_position),
+		                                this->torsoTwist,
+		                                iDynTree::VectorDynSize(temp_velocity),
+		                                this->gravity))
+		{
+			return true;
+		}
+		else
+		{
+			std::cerr << "[ERROR] [ICUB] update_state(): "
+				  << "Could not set state for the iDynTree::iKinDynComputations object." << std::endl;
+				  
+			return false;
+		}
+	}
+	else
+	{
+		std::cerr << "[ERROR] [ICUB] update_state(): "
+			  << "Could not update state from the JointInterface class." << std::endl;
+			  
+		return false;
+	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                 Solve the Cartesian control                                    //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::MatrixXd<double,12,1> iCubBase::track_cartesian_trajectory(const double &time);
+{
+	// Update the Hessian matrix
+//	this->H.block(0,0,12,12) = Eigen::MatrixXd::Zero(12,12);
+	this->H.block( 0,12,     12,this->n) = J;
+	this->H.block(12, 0,this->n,     12) = J.transposed();
+	this->H.block(12,12,this->n,this->n) = M;
+	
+	if(this->controlMode == velocity)
+	{
+		this->f.head(12) = -xdot;
+		this->f.tail(this->n) = -M*this->redundantTask;
+		
+		this->qpStartPoint.head(12) = (J*M.inverse()*J.transpose()).partialPivLu().solve(J*this->redundantTask - xdot);
+		this->qpStartPoint.tail(this->n) = this->x0;
+
+		
+	}
+	else if(this->controlMode == torque)
+	{
+		std::cout << "You haven't programmed this part yet!" << std::endl;
+		
+		return Eigen::VectorXd::Zero(this->n);
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB] track_cartesian_trajectory(): "
+		             "Control mode incorrectly specified! How did that happen?" << std::endl;
+		             
+		return Eigen::VectorXd::Zero(this->n);
+	}	
+}
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                   Solve the joint control                                      //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::VectorXd iCubBase::track_joint_trajectory(const double &time)
+{
+	double q_d, qdot_d, qddot_d;                                                                // Desired joint state
+	Eigen::VectorXd ref = Eigen::VectorXd::Zero(this->n);
+	
+	if(this->controlMode == velocity)
+	{
+		for(int i = 0; i < this->n; i++)
+		{
+			q_d = this->jointTrajectory[i].evaluatePoint(time, qdot_d, qddot_d);        // Get the desired state
+			
+			ref[i] = qdot_d                                                             // Feedforward velocity
+			       + this->kp*(q_d - this->q[i]);                                       // Position feedback
+		}
+	}
+	else if(this->controlMode == torque)
+	{
+		for(int i = 0; i < this->n; i++)
+		{
+			q_d = this->jointTrajectory[i].evaluatePoint(time, qdot_d, qddot_d);        // Get the desired state
+			
+			ref[i] = qddot_d                                                            // Feedforward acceleration
+			       + this->kd*(qdot_d - this->qdot[i])                                  // Velocity feedback
+			       + this->kq*(q_d - this->q[i]);                                       // Position feedback
+		}
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB] track_joint_trajectory(): "
+		          << "Control mode incorrectly specified! How did that happen?" << std::endl;
+	}
+	
+	return ref;
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
