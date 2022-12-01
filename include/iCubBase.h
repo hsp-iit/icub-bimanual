@@ -59,7 +59,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 	protected:
 	
 		double dt = 0.01;                                                                   // Default control frequency
-		double maxAcc = 10;
+		double maxAcc = 10;                                                                 // Limits the acceleration
 		double startTime;                                                                   // Used for timing the control loop
 		
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
@@ -78,6 +78,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
 		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
+		Eigen::MatrixXd J, M;
 		
 		// Kinematics & dynamics
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
@@ -87,7 +88,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		
 		// Variables for the QP solver
 		Eigen::MatrixXd H, B;
-		Eigen::VectorXd f, z;
+		
 			                       	
 		// Internal functions
 		bool get_speed_limits(double &lower, double &upper, const int &i);                  // Get velocity/acceleration limits
@@ -137,7 +138,16 @@ iCubBase::iCubBase(const std::string &fileName,
 	this->K = 10*this->gainMatrix;                                                              // Set the spring forces
 	this->D =  5*this->gainMatrix;                                                              // Set the damping forces
 	
+	this->J.resize(12,this->n);
+	this->M.resize(this->n,this->n);
+	
 	// Set the constraint matrices for the QP solver
+	this->startPoint.resize(this->n);                                                           // As it says on the label
+	
+	// H = [ 0  J ]
+	//     [ J' M ]
+	this->H = Eigen::MatrixXd::Zero(12+this->n,12+this->n);                                     // Upper corner never changes
+	
 	// B = [ 0  -I ]
 	//     [ 0   I ]
 	this->B.resize(2*this->n,12+this->n);
@@ -147,11 +157,9 @@ iCubBase::iCubBase(const std::string &fileName,
 	this->B.block(this->n, 0,this->n,     12) = Eigen::MatrixXd::Zero(this->n,12);
 	this->B.block(this->n,12,this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
 	
-	// z = [ -qdot_max ]
-	//     [  qdot_min ]
+	// z = [ -upperBound ]
+	//     [  lowerBound ]
 	this->z.resize(2*this->n); // NOTE: this vector is dynamic, so there's no point setting it here
-	
-	this->initialGuess.resize(this->n);                                                         // For the QP solver
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -562,8 +570,20 @@ bool iCubBase::update_state()
 		
 		for(int i = 0; i < this->n; i++)
 		{
+			// Transfer joint state values for use in this class
 			this->q[i]    = temp_position[i];
 			this->qdot[i] = temp_velocity[i];
+			
+			// Update joint constraint vector for use by QP solver
+			double lower, upper;
+			
+			if(this->controlMode == velocity) get_speed_limits(lower, upper);
+			else                              get_acceleration_limits(lower, upper);
+	
+			this->z(i)         =-upper;
+			this->z(i+this->n) = lower;
+			
+			this->startPoint(i) = 0.5*(upper + lower);                                  // Set as midpoint
 		}
 		
 		// Put them in to the iDynTree class to solve all the physics
@@ -573,6 +593,28 @@ bool iCubBase::update_state()
 		                                iDynTree::VectorDynSize(temp_velocity),
 		                                this->gravity))
 		{
+			Eigen::MatrixXd temp;                                                       // Temporary storage
+			
+			// Get the left hand component
+			this->computer.getFrameFreeFloatingJacobian("left",temp);                   // Compute left hand Jacobian
+			this->J.block(0,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
+			if(not this->leftControl) this->J.block(0,0,6,3).setZero();                 // Remove torso joints
+			
+			// Get the right hand component
+			this->computer.getFrameFreeFloatingJacobian("right",temp);                  // Compute right hand Jacobian
+			this->J.block(6,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
+			if(not this->rightControl) this->J.block(6,0,6,3).setZero();                // Remove torso joints
+			
+			// Compute inertia matrix
+			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
+			this->M = temp.block(6,6,this->n,this->n);                                  // Remove floating base
+			
+			// Update Hessian matrix for QP solver
+//			this->H.block( 0, 0,     12,     12) = Eigen::MatrixXd::Zero(12,12);
+			this->H.block( 0,12,     12,this->n) = this->J;
+			this->H.block(12, 0,this->n,     12) = this->J.transposed();
+			this->H.block(12,12,this->n,this->n) = this->M;
+			
 			return true;
 		}
 		else
@@ -595,45 +637,69 @@ bool iCubBase::update_state()
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                 Solve the Cartesian control                                    //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-Eigen::MatrixXd<double,12,1> iCubBase::track_cartesian_trajectory(const double &time);
+Eigen::MatrixXd<double,12,1> iCubBase::track_cartesian_trajectory(const double &time)
 {
-	// Update the Hessian matrix
-//	this->H.block(0,0,12,12) = Eigen::MatrixXd::Zero(12,12);
-	this->H.block( 0,12,     12,this->n) = J;
-	this->H.block(12, 0,this->n,     12) = J.transposed();
-	this->H.block(12,12,this->n,this->n) = M;
+	// Variables used in this scope
+	Eigen::Vector<double,12,1> ref; ref.setZero();                                              // Value to be returned
+	yarp::sig::Matrix pose(4,4);                                                                // Desired pose for a hand
+	yarp::sig::Vector poseError(6);                                                             // As it says on the label;
+	yarp::sig::Vector vel(6), acc(6);                                                           // Desired velocity, acceleration
+	iDynTree::Transform T;                                                                      // Temporary storage
+
+	// NOTE TO SELF: There's probably a smarter way to do all this...
+	
+	if(this->leftControl)
+	{
+		this->leftTrajectory.get_state(pose,vel,acc,time);                                  // Get the desired state for the left hand
+		T = this->computer.getWorldTransform("left");                                       // Get current pose of left hand
+		poseError = get_pose_error(pose,convert_iDynTree_to_yarp(T));		            // Compute pose error
+		
+		if(this->controlMode == velocity)
+		{
+			for(int i = 0; i < 6; i++) ref[i] = vel[i]                                  // Velocity feedforward
+			                                  + this->K(i,i)*poseError[i];              // Pose feedback
+		}
+		else
+		{
+			for(int i = 0; i < 6; i++) ref[i] = acc[i]                                  // Acceleration feedforward
+			                                  + this->D(i,i)*
+			                                  + this->
 	
 	if(this->controlMode == velocity)
 	{
-		this->f.head(12) = -xdot;
-		this->f.tail(this->n) = -M*this->redundantTask;
-		
-		this->qpStartPoint.head(12) = (J*M.inverse()*J.transpose()).partialPivLu().solve(J*this->redundantTask - xdot);
-		this->qpStartPoint.tail(this->n) = this->x0;
-
-		
+		if(this->leftControl)
+		{
+			this->leftTrajectory.get_state(pose,vel,acc,time);                          // Get the desired state for the left hand
+			T = this->computer.getWorldTransform("left");                               // Get current pose of left hand
+			poseError = get_pose_error(pose,convert_iDynTree_to_yarp(T));		    // Compute pose error
+			for(int i = 0; i < 6; i++) ref[i] = vel[i] + this->K(i,i)*poseError[i];     // Compute feedforward + feedback control
+		}
+		if(this->rightControl)
+		{
+			this->rightTrajectory.get_state(pose,vel,acc,time);                         // Get the desired state for the right hand
+			T = this->computer.getWorldTransform("right");                              // Get current pose of the right hand
+			poseError = get_pose_error(pose,convert_iDynTree_to_yarp(T));               // Compute pose error
+			for(int i = 0; i < 6; i++) ref[i+6] = ve[i] + this->K(i,i)*poseError[i];    // Feedforward + feedback control
+		}
 	}
 	else if(this->controlMode == torque)
 	{
-		std::cout << "You haven't programmed this part yet!" << std::endl;
-		
-		return Eigen::VectorXd::Zero(this->n);
-	}
-	else
+		if(this->leftControl)
+		{
+			this->leftTrajectory.get_state(pose,vel,acc,time);
+			T = this->computer.getWorldTransform("left");
+			poseError = get_pose_error(pose,convertiDynTree_to_yarp
 	{
-		std::cerr << "[ERROR] [iCUB] track_cartesian_trajectory(): "
-		             "Control mode incorrectly specified! How did that happen?" << std::endl;
-		             
-		return Eigen::VectorXd::Zero(this->n);
-	}	
+	
+	return ref;
 }
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                   Solve the joint control                                      //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::VectorXd iCubBase::track_joint_trajectory(const double &time)
 {
-	double q_d, qdot_d, qddot_d;                                                                // Desired joint state
-	Eigen::VectorXd ref = Eigen::VectorXd::Zero(this->n);
+	Eigen::VectorXd ref(this->n);                                                               // Value to be computed
+	double q_d, qdot_d, qddot_d;                                                                // Desired state
 	
 	if(this->controlMode == velocity)
 	{
@@ -641,7 +707,7 @@ Eigen::VectorXd iCubBase::track_joint_trajectory(const double &time)
 		{
 			q_d = this->jointTrajectory[i].evaluatePoint(time, qdot_d, qddot_d);        // Get the desired state
 			
-			ref[i] = qdot_d                                                             // Feedforward velocity
+			ref[i] = qdot_d                                                             // Velocity feedforward term
 			       + this->kp*(q_d - this->q[i]);                                       // Position feedback
 		}
 	}
@@ -651,15 +717,10 @@ Eigen::VectorXd iCubBase::track_joint_trajectory(const double &time)
 		{
 			q_d = this->jointTrajectory[i].evaluatePoint(time, qdot_d, qddot_d);        // Get the desired state
 			
-			ref[i] = qddot_d                                                            // Feedforward acceleration
+			ref[i] = qddot_d                                                            // Acceleration feedforward
 			       + this->kd*(qdot_d - this->qdot[i])                                  // Velocity feedback
-			       + this->kq*(q_d - this->q[i]);                                       // Position feedback
+			       + this->kp*(q_d - this->q[i]);                                       // Position feedback
 		}
-	}
-	else
-	{
-		std::cerr << "[ERROR] [iCUB] track_joint_trajectory(): "
-		          << "Control mode incorrectly specified! How did that happen?" << std::endl;
 	}
 	
 	return ref;
