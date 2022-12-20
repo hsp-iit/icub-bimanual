@@ -17,8 +17,8 @@ class iCub2 : public iCubBase
 		Eigen::Matrix<double,10,1>  b;
 		
 		// General constraint matrices for QP solver
-		Eigen::MatrixXd constraintMatrix;
-		Eigen::VectorXd constraintVector;
+		Eigen::MatrixXd B;
+		Eigen::VectorXd z;
 		
 		Eigen::VectorXd setPoint; // Desired joint configuration
 		
@@ -70,19 +70,14 @@ iCub2::iCub2(const std::string &fileName,
 	// dt*A*qdot >= -(A*q + b)
 	
 	// The constraint matrix is unique to iCub2.
-	// constraintMatrix = [ 0   -I ]
-	//                    [ 0    I ]
-	//                    [ 0 dt*A ]
-	this->constraintMatrix.resize(10+2*this->n,12+this->n);                                     // 2*n for joint limits, 10 for shoulder limits
-	this->constraintMatrix.block(        0, 0,10+2*this->n,12)      = Eigen::MatrixXd::Zero(10+2*this->n,12);
-	this->constraintMatrix.block(        0,12,     this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
-	this->constraintMatrix.block(  this->n,12,     this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
-	this->constraintMatrix.block(2*this->n,12,          10,this->n) = this->dt*this->A;
-	
-	// constraintVector = [ -qdot_max ]
-	//           [  qdot_min ]
-	//           [-(A*q + b) ]
-	this->constraintVector.resize(10+2*this->n);                                                // Vector is dynamic, so no need to set it here
+	// B = [ 0   -I ]
+	//     [ 0    I ]
+	//     [ 0 dt*A ]
+	this->B.resize(10+2*this->n,12+this->n);                                                    // 2*n for joint limits, 10 for shoulder limits
+	this->B.block(        0, 0,10+2*this->n,12)      = Eigen::MatrixXd::Zero(10+2*this->n,12);
+	this->B.block(        0,12,     this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
+	this->B.block(  this->n,12,     this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
+	this->B.block(2*this->n,12,          10,this->n) = this->dt*this->A;
 	
 	// Set the desired configuration for the arms when running in Cartesian mode
 	this->setPoint.resize(this->n);
@@ -108,33 +103,50 @@ void iCub2::run()
 	
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
 	
+	// Compute the constraint vector
+	Eigen::VectorXf z(10+2*this->n);
+	z.head(this->n)              = -this->upperJointBound;
+	z.block(this->n,0,this->n,1) =  this->lowerJointBound;
+	z.tail(10)                   = -(this->A*this->q + b);
+	
 	// Update the constraints
 	this->constraintVector.tail(10) = -(this->A*this->q + this->b);                             // Shoulder constraints
 	
 	if(this->controlSpace == joint)
 	{
-		Eigen::VectorXd ref = track_joint_trajectory(elapsedTime);                          // Solve feedforward/feedback control
+		Eigen::VectorXd desiredVel = track_joint_trajectory(elapsedTime);                   // As it says on the label              
 		
+		// We need to solve a unique constrained problem for the iCub 2
 		vel = solve(Eigen::MatrixXd::Identity(this->n,this->n),                             // H
-		           -ref,                                                                    // f
-		            this->constraintMatrix.block(0,12,10+2*this->n,this->n),                // B; remove part related to Lagrange multipliers
-		            this->constraintVector,                                                 // z
-		            initialGuess);
+		           -desiredVel,                                                             // f
+		            this->B.block(0,12,10+2*this->n,this->n),                               // B (without Lagrange multipliers)
+		            z,                                                                      // z
+		            0.5*(this->lowerJointBound + this->upperJointBound));                   // x0
 	}
 	else
 	{
 		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Solve Cartesian feedforward / feedback control
 		
-		Eigen::VectorXd redundantTask = 2*(this->setPoint - this->qdot);                    
+		// H = [ 0  J ]
+		//     [ J' M ]
+		Eigen::MatrixXd H(12+this->n,12+this->n);
+		H.block( 0, 0,     12,     12).setZero();
+		H.block( 0,12,     12,this->n) = this->J;
+		H.block(12, 0,this->n,     12) = this->J.transpose();
+		H.block(12,12,this->n,this->n) = this->M;
 		
+		// f = [      -xdot       ]
+		//   = [ -M*redundantTask ]
 		Eigen::VectorXd f(12+this->n);
 		f.head(12)      = -xdot;
-		f.tail(this->n) = -this->M*redundantTask();
+		f.tail(this->n) = -M*redundantTask;
 		
-		Eigen::VectorXd initialGuess(12+this->n);
-		initialGuess.head(12) = (this->J*this->M.inverse()*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - xdot);
-		initialGuess.tail(this->n) = this->qpStartPoint;
+		// Solve the starting point (lagrange multiplier & decision variable)
+		Eigen::VectorXf startPoint(12+this->n);
+		startPoint.head(12) = (this->J*this->M.partialPivLu().inverse()*this->J.transpose()).partialPivLu().solve(
+		                       this->J*redundantTask - xdot);                               // Lagrange multiplier
+		startPoint.tail(this->n) = 0.5*(this->lowerJointBound + this->upperJointBound);
 		
-		vel = solve(this->H,f,this->constraintMatrix,this->constraintVector,initialGuess);	
+		vel = solve(H,f,this->B,z,startPoint);                                              
 	}
 }

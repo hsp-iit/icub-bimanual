@@ -85,10 +85,6 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		iDynTree::Transform          torsoPose;                                             // Needed for inverse dynamics; not used yet
 		iDynTree::Twist              torsoTwist;                                            // Needed for inverse dynamics; not used yet
 		iDynTree::Vector3            gravity;                                               // Needed for inverse dynamics; not used yet
-		
-		// Variables for the QP solver
-		Eigen::MatrixXd H, B;
-		
 			                       	
 		// Internal functions
 		bool get_speed_limits(double &lower, double &upper, const int &i);                  // Get velocity/acceleration limits
@@ -128,38 +124,18 @@ iCubBase::iCubBase(const std::string &fileName,
 	this->gravity(2) = -9.81;
 
 	// Set the Cartesian control gains	
-	this->gainMatrix << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
-		            0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
-		            0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
-		            0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
-		            0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
-		            0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
+	this->gainTemplate << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
+		              0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
+		              0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
+		              0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
+		              0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
+		              0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
 	
-	this->K = 10*this->gainMatrix;                                                              // Set the spring forces
-	this->D =  5*this->gainMatrix;                                                              // Set the damping forces
+	this->K = 10*this->gainTemplate;                                                            // Set the spring forces
+	this->D =  5*this->gainTemplate;                                                            // Set the damping forces
 	
 	this->J.resize(12,this->n);
 	this->M.resize(this->n,this->n);
-	
-	// Set the constraint matrices for the QP solver
-	this->startPoint.resize(this->n);                                                           // As it says on the label
-	
-	// H = [ 0  J ]
-	//     [ J' M ]
-	this->H = Eigen::MatrixXd::Zero(12+this->n,12+this->n);                                     // Upper corner never changes
-	
-	// B = [ 0  -I ]
-	//     [ 0   I ]
-	this->B.resize(2*this->n,12+this->n);
-	
-	this->B.block(      0, 0,this->n,     12) = Eigen::MatrixXd::Zero(this->n,12);
-	this->B.block(      0,12,this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
-	this->B.block(this->n, 0,this->n,     12) = Eigen::MatrixXd::Zero(this->n,12);
-	this->B.block(this->n,12,this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
-	
-	// z = [ -upperBound ]
-	//     [  lowerBound ]
-	this->z.resize(2*this->n); // NOTE: this vector is dynamic, so there's no point setting it here
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -397,8 +373,8 @@ bool iCubBase::set_cartesian_gains(const double &stiffness, const double &dampin
 	}
 	else
 	{	
-		this->K = stiffness*this->gainMatrix;
-		this->D =   damping*this->gainMatrix;
+		this->K = stiffness*this->gainTemplate;
+		this->D =   damping*this->gainTemplate;
 		
 		return true;
 	}
@@ -573,17 +549,6 @@ bool iCubBase::update_state()
 			// Transfer joint state values for use in this class
 			this->q[i]    = temp_position[i];
 			this->qdot[i] = temp_velocity[i];
-			
-			// Update joint constraint vector for use by QP solver
-			double lower, upper;
-			
-			if(this->controlMode == velocity) get_speed_limits(lower, upper);
-			else                              get_acceleration_limits(lower, upper);
-	
-			this->z(i)         =-upper;
-			this->z(i+this->n) = lower;
-			
-			this->startPoint(i) = 0.5*(upper + lower);                                  // Set as midpoint
 		}
 		
 		// Put them in to the iDynTree class to solve all the physics
@@ -608,12 +573,6 @@ bool iCubBase::update_state()
 			// Compute inertia matrix
 			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
 			this->M = temp.block(6,6,this->n,this->n);                                  // Remove floating base
-			
-			// Update Hessian matrix for QP solver
-//			this->H.block( 0, 0,     12,     12) = Eigen::MatrixXd::Zero(12,12);
-			this->H.block( 0,12,     12,this->n) = this->J;
-			this->H.block(12, 0,this->n,     12) = this->J.transposed();
-			this->H.block(12,12,this->n,this->n) = this->M;
 			
 			return true;
 		}
