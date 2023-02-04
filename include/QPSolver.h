@@ -360,7 +360,7 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
 		H.block(m,0,n,m) = A.transpose();
 		H.block(m,m,n,n) = W;
 		
-		Eigen::VectorXf f(m+n);
+		Eigen::VectorXd f(m+n);
 		f.head(m) = y;
 		f.tail(n) = W*xd;
 		

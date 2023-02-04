@@ -2,14 +2,18 @@
  //                           Custom class for 2-handed control of iCub 2                          //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <iCubBase.h>                                                                               // Custom class: most functions defined here
+#ifndef ICUB2_H_
+#define ICUB2_H_
+
+#include <Eigen/Geometry>                                                                               // Eigen::Isometry3d and the like
+#include <iCubVelocity.h>                                                                               // Custom class: most functions defined here
 		        
-class iCub2 : public iCubBase
+class iCub2 : public iCubVelocity
 {
 	public:
-		iCub2(const std::string &fileName,
-		      const std::vector<std::string> &jointList,
-		      const std::vector<std::string> &portList);
+		iCub2(const std::string &pathToURDF,
+		      const std::vector<std::string> &jointNames,
+		      const std::vector<std::string> &portNames);
 	
 	private:
 		// Shoulder constraints
@@ -20,24 +24,22 @@ class iCub2 : public iCubBase
 		Eigen::MatrixXd B;
 		Eigen::VectorXd z;
 		
-		Eigen::VectorXd setPoint; // Desired joint configuration
+		Eigen::VectorXd setPoint;                                                           // Desired joint configuration
 		
 		void run();                                                                         // Main control loop
 			
 };                                                                                                  // Semicolon needed after class declaration
 
-
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                Constructor for the iCub 2                                      //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-iCub2::iCub2(const std::string &fileName,
-             const std::vector<std::string> &jointList,
-             const std::vector<std::string> &portList):
-             iCubBase(fileName,
-                      jointList,
-                      portList,
-                      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,M_PI),
-                                          iDynTree::Position(0.00,0.00,0.63)))
+iCub2::iCub2(const std::string &pathToURDF,
+             const std::vector<std::string> &jointNames,
+             const std::vector<std::string> &portNames) :
+             iCubVelocity(pathToURDF,
+                          jointNames,
+                          portNames,
+                          Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)))
 {
 	// Lower the gains since we're running in velocity mode
 	set_joint_gains(5.0, 0.01);                                                                 // We don't actually care about the derivative
@@ -79,6 +81,8 @@ iCub2::iCub2(const std::string &fileName,
 	this->B.block(  this->n,12,     this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
 	this->B.block(2*this->n,12,          10,this->n) = this->dt*this->A;
 	
+	this->z.resize(10+2*this->n);
+	
 	// Set the desired configuration for the arms when running in Cartesian mode
 	this->setPoint.resize(this->n);
 	this->setPoint.head(3).setZero();                                                           // Torso joints -> stay upright if possible
@@ -104,13 +108,9 @@ void iCub2::run()
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
 	
 	// Compute the constraint vector
-	Eigen::VectorXf z(10+2*this->n);
-	z.head(this->n)              = -this->upperJointBound;
-	z.block(this->n,0,this->n,1) =  this->lowerJointBound;
-	z.tail(10)                   = -(this->A*this->q + b);
-	
-	// Update the constraints
-	this->constraintVector.tail(10) = -(this->A*this->q + this->b);                             // Shoulder constraints
+	this->z.head(this->n)              = -this->upperJointBound;
+	this->z.block(this->n,0,this->n,1) =  this->lowerJointBound;
+	this->z.tail(10)                   = -(this->A*this->q + b);
 	
 	if(this->controlSpace == joint)
 	{
@@ -126,7 +126,8 @@ void iCub2::run()
 	else
 	{
 		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Solve Cartesian feedforward / feedback control
-		
+		Eigen::VectorXd redundantTask = -0.5*(this->setPoint - this->q);  
+		                
 		// H = [ 0  J ]
 		//     [ J' M ]
 		Eigen::MatrixXd H(12+this->n,12+this->n);
@@ -138,15 +139,17 @@ void iCub2::run()
 		// f = [      -xdot       ]
 		//   = [ -M*redundantTask ]
 		Eigen::VectorXd f(12+this->n);
-		f.head(12)      = -xdot;
+		f.head(12)      = -xdot;                                                            // Primary task
 		f.tail(this->n) = -M*redundantTask;
 		
 		// Solve the starting point (lagrange multiplier & decision variable)
-		Eigen::VectorXf startPoint(12+this->n);
+		Eigen::VectorXd startPoint(12+this->n);
 		startPoint.head(12) = (this->J*this->M.partialPivLu().inverse()*this->J.transpose()).partialPivLu().solve(
 		                       this->J*redundantTask - xdot);                               // Lagrange multiplier
 		startPoint.tail(this->n) = 0.5*(this->lowerJointBound + this->upperJointBound);
 		
-		vel = solve(H,f,this->B,z,startPoint);                                              
+		vel = solve(H,f,this->B,z,startPoint);                                              // Put through QP solver                                          
 	}
 }
+
+#endif

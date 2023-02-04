@@ -3,8 +3,8 @@
  //                                    Test build for code                                         //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 #include <iCub2.h>
-#include <iostream>
 
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
 

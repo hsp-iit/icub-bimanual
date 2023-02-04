@@ -1,18 +1,34 @@
-
 #include <iCubBase.h>
 
 class iCub3 : public iCubBase
 {
 	public:
-		iCub3(const std::string &fileName,
-		      const std::vector<std::string> &jointList,
-		      const std::vector<std::string> &portList);
+		iCub3(const std::string &pathToURDF,
+		      const std::vector<std::string> &jointNames,
+		      const std::vector<std::string> &portNames);
 	
 	private:
 		void run();                                                                         // Main control loop
 	
 };                                                                                                  // Semicolon needed after class declaration
 
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                   Constructor for iCub3                                       //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+iCub3::iCub3(const std::string &pathToURDF,
+             const std::vector<std::string> &jointNames,
+             const std::vector<std::string> &portNames) :
+             iCubBase(pathToURDF,
+                      jointNames,
+                      portNames,
+                      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
+                                          iDynTree::Position(0.0,0.0,0.65)) // NEED TO DOUBLE CHECK THIS VALUE
+                     )
+{
+	// Lower the gains for velocity mode
+	set_joint_gains(5.0, 0.01);                                                                 // Second argument for derivative gain doesn't matter
+	set_cartesian_gains(10.0, 0.01);                         
+}
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                     MAIN CONTROL LOOP                                          //     
