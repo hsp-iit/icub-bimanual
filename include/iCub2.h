@@ -18,7 +18,7 @@ class iCub2 : public iCubVelocity
 	private:
 		// Shoulder constraints
 		Eigen::MatrixXd A;
-		Eigen::Matrix<double,10,1>  b;
+		Eigen::Matrix<double,10,1> b;
 		
 		// General constraint matrices for QP solver
 		Eigen::MatrixXd B;
@@ -125,9 +125,18 @@ void iCub2::run()
 	}
 	else
 	{
+		/* if(not this->graspMode)
+		{
+			Eigen::VectorXd
+		}
+		else
+		{
+		
+		}
+		*/
 		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Solve Cartesian feedforward / feedback control
 		Eigen::VectorXd redundantTask = -0.5*(this->setPoint - this->q);  
-		                
+		
 		// H = [ 0  J ]
 		//     [ J' M ]
 		Eigen::MatrixXd H(12+this->n,12+this->n);

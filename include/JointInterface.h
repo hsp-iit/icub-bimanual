@@ -34,9 +34,11 @@ class JointInterface
 		                     	
 		bool read_encoders();                                                               // Update the joint states internally
 		
-		bool send_velocity_command(const double &command, const int &i);                    // Send a velocity command to a joint motor
+		bool send_velocity_command(const double &command, const int &i);
 		
 		bool send_velocity_commands(const std::vector<double> &commands);                   // Send velocity commands to several motors
+		
+		bool send_torque_commands(const std::vector<double> &commands);
 		
 		std::vector<double> get_joint_positions()  const { return this->pos; }              // As it says on the label
 		
@@ -53,6 +55,8 @@ class JointInterface
 	private:
 		// Properties
 		bool isValid = false;                                                               // Won't do anything if false	
+		
+		enum ControlMode {velocity, _torque} controlMode;
 		
 		std::vector<double> pos;                                                            // Vector of current joint positions
 		std::vector<double> vel;                                                            // Vector of current joint velocities
@@ -77,6 +81,9 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
                                const std::vector<std::string> &portList) :
                                n(jointList.size())
 {
+	// NEED THIS AS AN ARGUMENT FOR THE CONSTRUCTOR
+	this->controlMode = velocity;
+
 	// Resize std::vector objects
 	this->pos.resize(this->n);                                                                  // Resize position vector
 	this->vel.resize(this->n);                                                                  // Resize velocity vector
@@ -340,7 +347,11 @@ bool JointInterface::send_velocity_commands(const std::vector<double> &commands)
 	}
 	else
 	{
-		for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,commands[i]*180/M_PI);
+		if(this->controlMode == velocity)
+		{
+			for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,commands[i]*180/M_PI);
+		}
+//		else    for(int i = 0; i < this->n; i++) this->controller->sendTorqueCommand(i,commands[i]);
 	
 		return true;
 	}

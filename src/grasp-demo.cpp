@@ -51,8 +51,8 @@ int main(int argc, char *argv[])
 		if(command == "aft")
 		{
 			output.addString("Indietro");
-			robot.translate(yarp::sig::Vector({-0.075,0,0}),
-			                yarp::sig::Vector({-0.075,0,0}),
+			robot.translate(Eigen::Vector3d(-0.075, 0.0, 0.0),
+			                Eigen::Vector3d(-0.075, 0.0, 0.0),
 			                short_time);
 		}
 		else if(command == "close")
@@ -64,21 +64,21 @@ int main(int argc, char *argv[])
 		else if(command == "down")
 		{
 			output.addString("Giu'");
-			yarp::sig::Vector left  = {0, 0, -0.075};
-			yarp::sig::Vector right = {0, 0, -0.075};
-			robot.translate(left,right,short_time);
+//			yarp::sig::Vector left  = {0, 0, -0.075};
+//			yarp::sig::Vector right = {0, 0, -0.075};
+//			robot.translate(left,right,short_time);
 		}
 		else if(command == "fore")
 		{
 			output.addString("Avanti");
-			robot.translate(yarp::sig::Vector({0.075,0,0}),
-			                yarp::sig::Vector({0.075,0,0}),
-			                short_time);
+//			robot.translate(yarp::sig::Vector({0.075,0,0}),
+//			                yarp::sig::Vector({0.075,0,0}),
+//			                short_time);
 		}		
 		else if(command == "grasp")
 		{
 			output.addString("Grazie");
-			
+/*			
 			yarp::sig::Matrix left(4,4); left.eye();
 			left[0][3] = 0.30;
 			left[1][3] = 0.13;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 			right[2][3] = 0.62;
 			
 			//robot.move_to_position(idealGrasp,short_time);
-			robot.move_to_pose(left,right,short_time);
+			robot.move_to_pose(left,right,short_time);*/
 		}			
 		else if(command == "home")
 		{
@@ -100,17 +100,17 @@ int main(int argc, char *argv[])
 		else if(command == "in")
 		{
 			output.addString("Capito");
-			yarp::sig::Vector left  = {0, -0.075, 0};
-			yarp::sig::Vector right = {0,  0.075, 0};
+//			yarp::sig::Vector left  = {0, -0.075, 0};
+//			yarp::sig::Vector right = {0,  0.075, 0};
 			
-			robot.translate(left, right, short_time);
+//			robot.translate(left, right, short_time);
 		}
 		else if(command == "left")
 		{
 			output.addString("Sinistra");
-			robot.translate(yarp::sig::Vector({0,0.075,0.0}),
+/*			robot.translate(yarp::sig::Vector({0,0.075,0.0}),
 			                yarp::sig::Vector({0,0.075,0.0}),
-			                short_time);
+			                short_time); */
 		}
 		else if(command == "left hand pose")
 		{
@@ -120,19 +120,19 @@ int main(int argc, char *argv[])
 		else if(command == "out")
 		{
 			output.addString("Capito");
-			yarp::sig::Vector left  = {0,  0.075, 0};
+/*			yarp::sig::Vector left  = {0,  0.075, 0};
 			yarp::sig::Vector right = {0, -0.075, 0};
-			robot.translate(left,right, short_time);
+			robot.translate(left,right, short_time);*/
 		}
 		else if(command == "ready")
 		{
 			output.addString("Pronto");
-			robot.move_to_position(ready, short_time);
+//			robot.move_to_position(ready, short_time);
 		}
 		else if(command == "release")
 		{
 			output.addString("Capito");
-			
+/*			
 			std::vector<yarp::sig::Vector> waypoints;
 			waypoints.push_back(ready);
 			waypoints.push_back(home);
@@ -141,14 +141,14 @@ int main(int argc, char *argv[])
 			times.push_back(2.0);
 			times.push_back(3.0);
 			
-			robot.move_to_positions(waypoints, times);
+			robot.move_to_positions(waypoints, times);*/
 		}			
 		else if(command == "right")
 		{
 			output.addString("Destra");
-			robot.translate(yarp::sig::Vector({0,-0.075,0}),
+/*			robot.translate(yarp::sig::Vector({0,-0.075,0}),
 			                yarp::sig::Vector({0,-0.075,0}),
-			                short_time);
+			                short_time);*/
 		}
 		else if(command == "right hand pose")
 		{
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 		else if(command == "shake")
 		{
 			output.addString("Piacere");
-			robot.move_to_position(shake, short_time);
+//			robot.move_to_position(shake, short_time);
 		}
 		else if(command == "stop")
 		{
@@ -168,15 +168,15 @@ int main(int argc, char *argv[])
 		else if(command == "up")
 		{
 			output.addString("Su");
-			yarp::sig::Vector left  = {0, 0, 0.075};
+/*			yarp::sig::Vector left  = {0, 0, 0.075};
 			yarp::sig::Vector right = {0, 0, 0.075};
-			robot.translate(left,right,short_time);
+			robot.translate(left,right,short_time);*/
 		}
 		else if(command == "wave")
 		{
 			output.addString("Ciao");
 			
-			std::vector<yarp::sig::Vector> wave;
+/*			std::vector<yarp::sig::Vector> wave;
 			wave.push_back(wave1);
 			wave.push_back(wave2);
 			wave.push_back(wave1);
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
 			times.push_back(5.0);
 			times.push_back(8.0);
 			
-			robot.move_to_positions(wave,times);
+			robot.move_to_positions(wave,times);*/
 		}
 		else
 		{

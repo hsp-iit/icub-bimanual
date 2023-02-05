@@ -5,6 +5,7 @@
 
 
 #include <iCub2.h>
+#include <iCubTorque.h>
 
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
 
