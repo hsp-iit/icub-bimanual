@@ -65,7 +65,6 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		double startTime;                                                                   // Used for timing the control loop
 		
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
-		Eigen::VectorXd lowerJointBound, upperJointBound;                                   // Limits on the joint motion
 		
 		enum ControlSpace {joint, cartesian} controlSpace;
 		
@@ -177,8 +176,6 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 			this->jointTrajectory.resize(this->n);                                      // Trajectory for joint motion control
 			this->q.resize(this->n);                                                    // Vector of measured joint positions
 			this->qdot.resize(this->n);                                                 // Vector of measured joint velocities
-			this->lowerJointBound.resize(this->n);
-			this->upperJointBound.resize(this->n);
 			
 			std::cout << "[INFO] [ICUB] Successfully created iDynTree model from "
 			          << pathToURDF << "." << std::endl;
@@ -467,19 +464,19 @@ bool iCubBase::update_state()
 		                                iDynTree::VectorDynSize(temp_position),             // Joint positions
 		                                iDynTree::Twist(iDynTree::GeomVector3(0,0,0), iDynTree::GeomVector3(0,0,0)), // Torso twist
 		                                iDynTree::VectorDynSize(temp_velocity),             // Joint velocities
-		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81})))                           // Direction of gravity
+		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity
 		{
-			Eigen::MatrixXd temp;                                                       // Temporary storage
+			// Get the Jacobian for the hands
+			Eigen::MatrixXd temp(6,6+this->n);                                          // Temporary storage
 			
-			// Get the left hand component
 			this->computer.getFrameFreeFloatingJacobian("left",temp);                   // Compute left hand Jacobian
 			this->J.block(0,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
 			
-			// Get the right hand component
 			this->computer.getFrameFreeFloatingJacobian("right",temp);                  // Compute right hand Jacobian
 			this->J.block(6,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
 			
 			// Compute inertia matrix
+			temp.resize(6+this->n,6+this->n);
 			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
 			this->M = temp.block(6,6,this->n,this->n);                                  // Remove floating base
 			
