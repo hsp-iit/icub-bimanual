@@ -107,9 +107,12 @@ void iCub2::run()
 	
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
 	
-	// Compute the constraint vector
-	this->z.head(this->n)              = -this->upperJointBound;
-	this->z.block(this->n,0,this->n,1) =  this->lowerJointBound;
+	Eigen::VectorXd upperBound(this->n), lowerBound(this->n);
+	
+	// Compute the constraint vector and start point
+	for(int i = 0; i < this->n; i++) compute_speed_limits(lowerBound(i),upperBound(i),i);
+	this->z.head(this->n)              = -upperBound;
+	this->z.block(this->n,0,this->n,1) = lowerBound;
 	this->z.tail(10)                   = -(this->A*this->q + b);
 	
 	if(this->controlSpace == joint)
@@ -121,21 +124,12 @@ void iCub2::run()
 		           -desiredVel,                                                             // f
 		            this->B.block(0,12,10+2*this->n,this->n),                               // B (without Lagrange multipliers)
 		            z,                                                                      // z
-		            0.5*(this->lowerJointBound + this->upperJointBound));                   // x0
+		            0.5*(lowerBound + upperBound));                                         // x0
 	}
 	else
-	{
-		/* if(not this->graspMode)
-		{
-			Eigen::VectorXd
-		}
-		else
-		{
-		
-		}
-		*/
-		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Solve Cartesian feedforward / feedback control
-		Eigen::VectorXd redundantTask = -0.5*(this->setPoint - this->q);  
+	{	
+		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Feedforward + feedback control
+		Eigen::VectorXd redundantTask = -0.5*(this->setPoint - this->q);                    // As it says on the label
 		
 		// H = [ 0  J ]
 		//     [ J' M ]
@@ -151,14 +145,17 @@ void iCub2::run()
 		f.head(12)      = -xdot;                                                            // Primary task
 		f.tail(this->n) = -M*redundantTask;
 		
-		// Solve the starting point (lagrange multiplier & decision variable)
+		// Compute the start point for the QP solver
 		Eigen::VectorXd startPoint(12+this->n);
 		startPoint.head(12) = (this->J*this->M.partialPivLu().inverse()*this->J.transpose()).partialPivLu().solve(
-		                       this->J*redundantTask - xdot);                               // Lagrange multiplier
-		startPoint.tail(this->n) = 0.5*(this->lowerJointBound + this->upperJointBound);
+		                       this->J*redundantTask - xdot);                               // These are the Lagrange multipliers
+		                       
+		startPoint.tail(this->n) = 0.5*(lowerBound + upperBound);                           // These are the joint velocities
 		
-		vel = solve(H,f,this->B,z,startPoint);                                              // Put through QP solver                                          
+		vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);                              // We can ignore the Lagrange multipliers
 	}
+	
+	for(int i = 0; i < this->n; i++) send_velocity_command(vel(i),i);
 }
 
 #endif
