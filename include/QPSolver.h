@@ -1,8 +1,10 @@
 #ifndef QPSOLVER_H_
 #define QPSOLVER_H_
 
+#include <Eigen/Dense>                                                                              // Eigen::MatrixXd and matrix decomposition
+#include <iostream>                                                                                 // std::cout, std::cerr
 #include <math.h>
-#include <vector>                                                                                    // std::vector
+#include <vector>                                                                                   // std::vector
 
 class QPSolver
 {
@@ -199,7 +201,13 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 			alpha = this->alpha0;
 			for(int j = 0; j < numConstraints; j++)
 			{
-				while( d[j] + alpha*bt[j].dot(dx) < 0) alpha *= this->alphaMod;
+				// d_i   = b'*x_i - z
+				// d_i+1 = b'*(x_i + alpha*dx_i) - z
+				//       = alpha*b'*dx > 0
+				
+				double dotProd = bt[j].dot(dx);                                     // Makes calcs a little easier
+				
+				if(d[j] + alpha*dotProd < 0) alpha = (1e-04 - d[j]) / dotProd;      // Optimal step size to remain in constraint
 			}
 
 			if(alpha*dx.norm() < this->tol) break;
@@ -289,7 +297,7 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &y,
 	{
 		int n = x0.size();
 		
-		// Set up constraint matrices in standard form Bx >= c where:
+		// Set up constraint matrices in standard form Bx >= z where:
 		// B*x = [ -I ] >= [ -xMax ]
 		//       [  I ]    [  xMin ]
 		Eigen::MatrixXd B(2*n,n);
@@ -446,7 +454,7 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
 		f.tail(n) = -W*xd;
 		
 		Eigen::VectorXd startPoint(m+n);
-		startPoint.head(m) = (A*W.partialPivLu().inverse()*A.transpose()).partialPivLu().solve(A*xd - y);
+		startPoint.head(m) = (A*W.partialPivLu().inverse()*A.transpose()).partialPivLu().solve(A*xd - y); // Lagrange multiplier
 		startPoint.tail(n) = x0;
 		
 		return (solve(H,f,B,z,startPoint)).tail(n);                                         // Convert to standard form and solve
