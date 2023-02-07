@@ -83,8 +83,8 @@ int main(int argc, char *argv[])
 		{
 			output.addString("Grazie");
 			
-			robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.13,0.62)),
-			                   Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.13,0.63)),
+			robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.13,0.65)),
+			                   Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.13,0.65)),
 			                   short_time);
 			
 			//robot.move_to_position(idealGrasp,short_time);
