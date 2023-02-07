@@ -39,7 +39,7 @@ iCub2::iCub2(const std::string &pathToURDF,
              iCubVelocity(pathToURDF,
                           jointNames,
                           portNames,
-                          Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)))
+                          Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())))
 {
 	// Lower the gains since we're running in velocity mode
 	set_joint_gains(5.0, 0.01);                                                                 // We don't actually care about the derivative
@@ -129,7 +129,7 @@ void iCub2::run()
 	else
 	{	
 		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Feedforward + feedback control
-		Eigen::VectorXd redundantTask = -0.5*(this->setPoint - this->q);                    // As it says on the label
+		Eigen::VectorXd redundantTask = 0.1*(this->setPoint - this->q);                    // As it says on the label
 		
 		// H = [ 0  J ]
 		//     [ J' M ]
@@ -151,6 +151,7 @@ void iCub2::run()
 		                       this->J*redundantTask - xdot);                               // These are the Lagrange multipliers
 		                       
 		startPoint.tail(this->n) = 0.5*(lowerBound + upperBound);                           // These are the joint velocities
+		
 		
 		vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);                              // We can ignore the Lagrange multipliers
 	}
