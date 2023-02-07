@@ -62,14 +62,30 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 		// Extract all the positions and euler angles for each pose
 		for(int i = 0; i < this->numPoses; i++)
 		{
+			// Extract the translation and put it in the points array
 			Eigen::Vector3d translation = poses[i].translation();
-			Eigen::Vector3d rotation    = poses[i].rotation().eulerAngles(0,1,2);
+			for(int j = 0; j < 3; j++) points[j][i] = translation[j];
 			
-			for(int j = 0; j < 3; j++)
-			{
-				points[ j ][i] = translation(j);
-				points[j+1][i] = rotation(j);
-			}
+			// Extract the orientation as Euler anggles
+			Eigen::Matrix<double,3,3> R = poses[i].rotation();                          // SO(3) matrix
+		 	double roll, pitch, yaw;
+		 	
+		 	if(abs(R(0,2)) != 1)
+		 	{
+		 		pitch = asin(R(0,2));
+		 		roll  = atan2(-R(1,2),R(2,2));
+		 		yaw   = atan2(-R(0,1),R(0,0));
+		 	}
+		 	else // Gimbal lock; yaw - roll = atan2(R(1,0),R(1,1));
+		 	{
+		 		pitch = -M_PI/2;
+		 		roll  = atan2(-R(1,0),R(1,1));
+		 		yaw   = 0;
+		 	}
+		 	
+		 	points[3][i] = roll;
+		 	points[4][i] = pitch;
+		 	points[5][i] = yaw;
 		}
 		 
 		// Now insert them in to the iDynTree::CubicSpline object
