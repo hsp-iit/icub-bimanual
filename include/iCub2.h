@@ -127,9 +127,9 @@ void iCub2::run()
 		            0.5*(lowerBound + upperBound));                                         // x0
 	}
 	else
-	{	
+	{
 		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Feedforward + feedback control
-		Eigen::VectorXd redundantTask = 0.1*(this->setPoint - this->q);                    // As it says on the label
+		Eigen::VectorXd redundantTask = 0.1*(this->setPoint - this->q);                     // As it says on the label
 		
 		// H = [ 0  J ]
 		//     [ J' M ]
@@ -147,13 +147,38 @@ void iCub2::run()
 		
 		// Compute the start point for the QP solver
 		Eigen::VectorXd startPoint(12+this->n);
-		startPoint.head(12) = (this->J*this->M.partialPivLu().inverse()*this->J.transpose()).partialPivLu().solve(
-		                       this->J*redundantTask - xdot);                               // These are the Lagrange multipliers
+		startPoint.head(12) = (this->J*this->Mdecomp.inverse()*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - xdot); // These are the Lagrange multipliers
 		                       
 		startPoint.tail(this->n) = 0.5*(lowerBound + upperBound);                           // These are the joint velocities
 		
-		
 		vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);                              // We can ignore the Lagrange multipliers
+		
+		// Re-solve the problem subject to grasp contraints Jc*qdot = 0
+		if(this->isGrasping)
+		{
+			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
+			
+			// Set up the new start point for the solver
+			startPoint.resize(6+this->n);
+			startPoint.head(6) = (Jc*this->Mdecomp.inverse()*Jc.transpose())*Jc*vel;    // Lagrange multipliers
+			startPoint.tail(12) = vel;                                                  // Previous solution
+			
+			// H = [ 0   Jc ]
+			//     [ Jc' M  ]
+			H.resize(6+this->n,6+this->n);
+			H.block(0,0,6,6).setZero();
+			H.block(0,6,6,this->n) = Jc;
+			H.block(6,0,this->n,6) = Jc.transpose();
+			H.block(6,6,this->n,this->n) = M;
+			
+			// f = [   0  ]
+			//     [ -vel ]
+			f.resize(6+this->n);
+			f.head(6).setZero();
+			f.tail(this->n) = -vel;
+			
+			vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);
+		}
 	}
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel(i),i);
