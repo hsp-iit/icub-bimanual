@@ -15,6 +15,7 @@
 #include <iDynTree/Model/Model.h>                                                                   // Class that holds basic dynamic info
 #include <iDynTree/ModelIO/ModelLoader.h>                                                           // Extracts information from URDF
 #include <JointInterface.h>                                                                         // Communicates with motors
+#include <Payload.h>
 #include <QPSolver.h>                                                                               // Custom class
 #include <yarp/os/PeriodicThread.h>                                                                 // Keeps timing of the control loop
 #include <yarp/sig/Vector.h>
@@ -45,6 +46,10 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
 				       const std::vector<double> &times);
 				       
+		bool grasp_object(const Eigen::Isometry3d &leftPose,
+		                  const Eigen::Isometry3d &rightPose,
+		                  const Eigen::Isometry3d &objectPose);
+				       
 		bool print_hand_pose(const std::string &whichHand);                                 // As it says on the label
 		
 		bool set_cartesian_gains(const double &stiffness, const double &damping);
@@ -58,6 +63,9 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		void halt();
 	
 	protected:
+		Payload payload;                                                                    
+	
+		bool isGrasping = false;
 	
 		double dt     = 0.01;                                                               // Default control frequency
 		double hertz  = 100;                                                                // Control frequency = 1/dt
@@ -75,11 +83,17 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		
 		// Cartesian control
 		bool leftControl, rightControl;                                                     // Switch for activating left and right control
-		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Individual trajectories for left, right hand
+		CartesianTrajectory leftTrajectory, rightTrajectory, payloadTrajectory;             // Individual trajectories for left, right hand
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
 		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
-		Eigen::MatrixXd J, M;
+		Eigen::MatrixXd J;                                                                  // Jacobian for both hands
+		Eigen::MatrixXd M;                                                                  // Inertia matrix
+		Eigen::MatrixXd Mdecomp;                                                            // LU decomposition: M = L*U
+		Eigen::Isometry3d leftPose, rightPose;                                              // Pose of the left and right hands
+		
+		// Grasping
+		Eigen::Matrix<double,6,12> G, C;                                                    // Grasp and constraint matrices
 		
 		// Kinematics & dynamics
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
@@ -128,9 +142,24 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 	
 	this->K = 10*this->gainTemplate;                                                            // Set the spring forces
 	this->D =  5*this->gainTemplate;                                                            // Set the damping forces
+
+	// G = [    I    0     I    0 ]
+	//     [ S(left) I S(right) I ]
+	this->G.block(0,0,3,3).setIdentity();
+	this->G.block(0,3,3,3).setZero();
+	this->G.block(0,6,3,3).setIdentity();
+	this->G.block(0,9,3,3).setZero();
+	this->G.block(3,3,3,3).setIdentity();
+	this->G.block(3,9,3,3).setIdentity();
 	
-	this->J.resize(12,this->n);
-	this->M.resize(this->n,this->n);
+	// C = [  I  -S(left) -I  S(right) ]
+	//     [  0      I     0     -I    ]
+	C.block(0,0,3,3).setIdentity();
+	C.block(0,6,3,3) = -C.block(0,0,3,3);
+	C.block(3,0,3,3).setZero();
+	C.block(3,3,3,3).setIdentity();
+	C.block(3,6,3,3).setZero();
+	C.block(3,9,3,3) = -C.block(0,0,3,3);
 
 	// Load a model
 	iDynTree::ModelLoader loader;                                                               // Temporary object
@@ -238,6 +267,16 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 
 	return true;
 }
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                               Grasp an object with two hands                                   //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::grasp_object(const Eigen::Isometry3d &leftPose,
+                            const Eigen::Isometry3d &rightPose,
+                            const Eigen::Isometry3d &objectPose)
+{
+	// NEED TO FILL THIS IN
+}                            
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                          Move the joints to a desired configuration                           //
@@ -392,12 +431,9 @@ bool iCubBase::translate(const Eigen::Vector3d &left,
                          const Eigen::Vector3d &right,
                          const double &time)
 {
-	Eigen::Isometry3d leftTarget  = iDynTree_to_Eigen(this->computer.getWorldTransform("left"))
-	                              * Eigen::Translation3d(left);
-	                              
-	Eigen::Isometry3d rightTarget = iDynTree_to_Eigen(this->computer.getWorldTransform("right"))
-	                              * Eigen::Translation3d(right);
-	                              
+	Eigen::Isometry3d leftTarget  = this->leftPose  * Eigen::Translation3d(left);
+	Eigen::Isometry3d rightTarget = this->rightPose * Eigen::Translation3d(right);
+	
 	return move_to_pose(leftTarget, rightTarget, time);
 }
 
@@ -479,6 +515,50 @@ bool iCubBase::update_state()
 			temp.resize(6+this->n,6+this->n);
 			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
 			this->M = temp.block(6,6,this->n,this->n);                                  // Remove floating base
+			this->Mdecomp = M.partialPivLu();                                           // Decompose M = L*U
+			
+			// Update hand poses
+			this->leftPose  = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));
+			this->rightPose = iDynTree_to_Eigen(this->computer.getWorldTransform("right"));
+			
+			// Update the grasp and constraint matrices
+			if(this->isGrasping)
+			{
+				// We assume the payload has a rigid contact with the left hand
+				this->payload.update_state(this->leftPose,                          
+				                           this->J.block(0,0,6,this->n)*this->qdot);
+
+				// G = [    I    0     I    0 ]
+				//     [ S(left) I S(right) I ]
+				
+				// C = [  I  -S(left)  -I  S(right) ]
+				//     [  0      I      0    -I     ]
+				
+				Eigen::Matrix<double,3,3> S;                                        // Skew symmetric matrix
+				
+				// Left hand component
+				Eigen::Vector3d r = this->payload.pose().translation() - this->leftPose.translation();
+				
+				S <<     0, -r(2),  r(1),
+				      r(2),     0, -r(0),
+				     -r(1),  r(0),    0;
+				
+				this->G.block(3,0,3,3) =  S;
+				this->C.block(0,3,3,3) = -S;
+				
+				// Right hand component
+				r = this->payload.pose().translation() - this->rightPose.translation();
+				
+				S <<     0, -r(2),  r(1),
+				      r(2),     0, -r(0),
+				     -r(1),  r(0),    0;
+				     
+				this->G.block(3,6,3,3) = S;
+				this->C.block(0,9,3,3) = S;
+				
+				std::cout << "\nHere is G*C.transpose():" << std::endl;
+				std::cout << this->G*this->C.transpose() << std::endl;
+			}
 			
 			return true;
 		}
