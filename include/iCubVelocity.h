@@ -43,20 +43,27 @@ Eigen::Matrix<double,12,1> iCubVelocity::track_cartesian_trajectory(const double
 	Eigen::Isometry3d pose;                                                                     // Desired pose
 	Eigen::Matrix<double,6,1> vel, acc;                                                         // Desired velocity, accleration
 	
-	if(this->leftControl)
+	if(this->isGrasping)
 	{
-		this->leftTrajectory.get_state(pose, vel, acc, time);
+		this->payloadTrajectory.get_state(pose, vel, acc, time);
 		
-		xdot.head(6) = vel
-		             + this->K*pose_error(pose, iDynTree_to_Eigen(this->computer.getWorldTransform("left")));
+		xdot = this->G.transpose()*(vel + this->pose_error(pose, this->payload.pose()));
 	}
-	
-	if(this->rightControl)
+	else
 	{
-		this->rightTrajectory.get_state(pose, vel, acc, time);
+		if(this->leftControl)
+		{
+			this->leftTrajectory.get_state(pose, vel, acc, time);
+			
+			xdot.head(6) = vel + this->K*pose_error(pose, this->leftPose);
+		}
 		
-		xdot.tail(6) = vel
-		             + this->K*pose_error(pose, iDynTree_to_Eigen(this->computer.getWorldTransform("right")));
+		if(this->rightControl)
+		{
+			this->rightTrajectory.get_state(pose, vel, acc, time);
+			
+			xdot.tail(6) = vel + this->K*pose_error(pose, this->rightPose);
+		}
 	}
 	
 	return xdot;
