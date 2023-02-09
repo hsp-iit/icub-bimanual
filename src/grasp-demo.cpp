@@ -38,6 +38,10 @@ int main(int argc, char *argv[])
 	yarp::os::Bottle output;                                                                    // Store information to send to the user
 	std::string command;                                                                        // Response message, command from user
 	
+	// Create a payload object
+	//          mass,  Ixx, Ixy, Ixz,   Iyy, Iyz,   Izz
+	Payload box(0.1, 1e-06, 0.0, 0.0, 1e-06, 0.0, 1e-06);
+	
 	// Run the control loop
 	
 	bool active = true;
@@ -86,6 +90,10 @@ int main(int argc, char *argv[])
 			robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.13,0.65)),
 			                   Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.13,0.65)),
 			                   short_time);
+			                   
+			yarp::os::Time::delay(short_time);
+			
+			robot.grasp_object(box);
 			
 			//robot.move_to_position(idealGrasp,short_time);
 		}			
@@ -133,6 +141,8 @@ int main(int argc, char *argv[])
 		else if(command == "release")
 		{
 			output.addString("Capito");
+			
+			robot.release_object();
 			
 			std::vector<Eigen::VectorXd> waypoints;
 			waypoints.push_back(ready);
