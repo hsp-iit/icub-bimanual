@@ -1,6 +1,6 @@
     ///////////////////////////////////////////////////////////////////////////////////////////////////
    //                                                                                               //
-  //               Specification of velocity control functions for the iCub/ergoCub                //
+  //                         Velocity control functions for the iCub/ergoCub                       //
  //                                                                                               //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -45,9 +45,10 @@ Eigen::Matrix<double,12,1> iCubVelocity::track_cartesian_trajectory(const double
 	
 	if(this->isGrasping)
 	{
-		this->payloadTrajectory.get_state(pose, vel, acc, time);
-		
-		xdot = this->G.transpose()*(vel + this->pose_error(pose, this->payload.pose()));
+		if( this->payloadTrajectory.get_state(pose, vel, acc, time) )
+		{
+			xdot = this->G.transpose()*(vel + this->pose_error(pose, this->payload.pose()));
+		}
 	}
 	else
 	{
