@@ -107,9 +107,8 @@ void iCub2::run()
 	
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
 	
-	Eigen::VectorXd upperBound(this->n), lowerBound(this->n);
-	
 	// Compute the constraint vector and start point
+	Eigen::VectorXd upperBound(this->n), lowerBound(this->n);
 	for(int i = 0; i < this->n; i++) compute_speed_limits(lowerBound(i),upperBound(i),i);
 	this->z.head(this->n)              = -upperBound;
 	this->z.block(this->n,0,this->n,1) = lowerBound;
@@ -156,7 +155,7 @@ void iCub2::run()
 		// Re-solve the problem subject to grasp contraints Jc*qdot = 0
 		if(this->isGrasping)
 		{
-			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
+/*			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
 			
 			// Set up the new start point for the solver
 			startPoint.resize(6+this->n);
@@ -178,6 +177,7 @@ void iCub2::run()
 			f.tail(this->n) = -vel;
 			
 			vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);
+*/
 		}
 	}
 	
