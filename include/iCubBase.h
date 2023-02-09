@@ -32,6 +32,8 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		         const Eigen::Isometry3d        &_torsoPose);
 		
 		// Basic control functions
+		bool is_grasping() const { return this->isGrasping; }
+		
 		bool move_to_pose(const Eigen::Isometry3d &leftPose,
 		                  const Eigen::Isometry3d &rightPose,
 		                  const double &time);
@@ -46,9 +48,9 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
 				       const std::vector<double> &times);
 				       
-		bool grasp_object(const Eigen::Isometry3d &leftPose,
-		                  const Eigen::Isometry3d &rightPose,
-		                  const Eigen::Isometry3d &objectPose);
+		bool grasp_object(const Payload &_payload);
+		
+		bool release_object();
 				       
 		bool print_hand_pose(const std::string &whichHand);                                 // As it says on the label
 		
@@ -89,7 +91,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
 		Eigen::MatrixXd J;                                                                  // Jacobian for both hands
 		Eigen::MatrixXd M;                                                                  // Inertia matrix
-		Eigen::MatrixXd Mdecomp;                                                            // LU decomposition: M = L*U
+		Eigen::PartialPivLU<Eigen::MatrixXd> Mdecomp;                                                        // LU decomposition: M = L*U
 		Eigen::Isometry3d leftPose, rightPose;                                              // Pose of the left and right hands
 		
 		// Grasping
@@ -142,6 +144,9 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 	
 	this->K = 10*this->gainTemplate;                                                            // Set the spring forces
 	this->D =  5*this->gainTemplate;                                                            // Set the damping forces
+	
+	this->J.resize(12,this->n);
+	this->M.resize(this->n,this->n);
 
 	// G = [    I    0     I    0 ]
 	//     [ S(left) I S(right) I ]
@@ -271,12 +276,45 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                               Grasp an object with two hands                                   //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::grasp_object(const Eigen::Isometry3d &leftPose,
-                            const Eigen::Isometry3d &rightPose,
-                            const Eigen::Isometry3d &objectPose)
+bool iCubBase::grasp_object(const Payload &_payload)
 {
-	// NEED TO FILL THIS IN
-}                            
+	if(this->isGrasping)
+	{
+		std::cout << "[INFO] [ICUB BASE] grasp_object(): "
+		          << "You are already grasping an object!" << std::endl;
+		
+		return false;
+	}
+	else
+	{
+		this->isGrasping = true;
+		this->payload = _payload;
+		
+		return true;
+	}
+}
+  
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                       Release an object                                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::release_object()
+{
+	if(this->isGrasping)
+	{
+		this->isGrasping = false;
+		
+		// Move the hands apart?
+		
+		return true;
+	}
+	else
+	{
+		std::cout << "[INFO] [ICUB BASE] relase_object(): "
+		          << "You are not currently grasping!" << std::endl;
+		
+		return false;
+	}
+}
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                          Move the joints to a desired configuration                           //
@@ -515,6 +553,7 @@ bool iCubBase::update_state()
 			temp.resize(6+this->n,6+this->n);
 			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
 			this->M = temp.block(6,6,this->n,this->n);                                  // Remove floating base
+			
 			this->Mdecomp = M.partialPivLu();                                           // Decompose M = L*U
 			
 			// Update hand poses
@@ -524,9 +563,9 @@ bool iCubBase::update_state()
 			// Update the grasp and constraint matrices
 			if(this->isGrasping)
 			{
-				// We assume the payload has a rigid contact with the left hand
-				this->payload.update_state(this->leftPose,                          
-				                           this->J.block(0,0,6,this->n)*this->qdot);
+				// Assume the payload is rigidly attached to the left hand
+				this->payload.update_state(this->leftPose,
+				                           iDynTree::toEigen(this->computer.getFrameVel("left"))); 
 
 				// G = [    I    0     I    0 ]
 				//     [ S(left) I S(right) I ]
@@ -539,9 +578,9 @@ bool iCubBase::update_state()
 				// Left hand component
 				Eigen::Vector3d r = this->payload.pose().translation() - this->leftPose.translation();
 				
-				S <<     0, -r(2),  r(1),
-				      r(2),     0, -r(0),
-				     -r(1),  r(0),    0;
+				S <<    0 , -r(2),  r(1),
+				      r(2),    0 , -r(0),
+				     -r(1),  r(0),    0 ;
 				
 				this->G.block(3,0,3,3) =  S;
 				this->C.block(0,3,3,3) = -S;
@@ -549,12 +588,18 @@ bool iCubBase::update_state()
 				// Right hand component
 				r = this->payload.pose().translation() - this->rightPose.translation();
 				
-				S <<     0, -r(2),  r(1),
-				      r(2),     0, -r(0),
+				S <<    0 , -r(2),  r(1),
+				      r(2),    0 , -r(0),
 				     -r(1),  r(0),    0;
 				     
 				this->G.block(3,6,3,3) = S;
 				this->C.block(0,9,3,3) = S;
+				
+				std::cout << "\nHere is G:" << std::endl;
+				std::cout << this->G << std::endl;
+				
+				std::cout << "\nHere is C:" << std::endl;
+				std::cout << this->C << std::endl;
 				
 				std::cout << "\nHere is G*C.transpose():" << std::endl;
 				std::cout << this->G*this->C.transpose() << std::endl;
