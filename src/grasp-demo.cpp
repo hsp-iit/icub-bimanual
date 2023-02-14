@@ -9,6 +9,12 @@
 double long_time  = 5.0;
 double short_time = 2.0;
 
+double mass = 0.1;
+Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0,
+                                                               0.0, 1e-06,   0.0,
+                                                               0.0,   0.0, 1e-06).finished();
+                                                               
+
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
 
 std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
@@ -37,10 +43,6 @@ int main(int argc, char *argv[])
 	yarp::os::Bottle input;                                                                     // Store information from the user input
 	yarp::os::Bottle output;                                                                    // Store information to send to the user
 	std::string command;                                                                        // Response message, command from user
-	
-	// Create a payload object
-	//          mass,  Ixx, Ixy, Ixz,   Iyy, Iyz,   Izz
-	Payload box(0.1, 1e-06, 0.0, 0.0, 1e-06, 0.0, 1e-06);
 	
 	// Run the control loop
 	
@@ -85,17 +87,19 @@ int main(int argc, char *argv[])
 		}		
 		else if(command == "grasp")
 		{
+		
 			output.addString("Grazie");
 			
-			robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.13,0.65)),
-			                   Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.13,0.65)),
+			robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.15,0.65)),
+			                   Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
 			                   short_time);
 			                   
 			yarp::os::Time::delay(short_time);
 			
-			robot.grasp_object(box);
+			// Box is 295mm (0.295m) wide
+			Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65));              // Pose of box relative to robot
 			
-			//robot.move_to_position(idealGrasp,short_time);
+			robot.grasp_object( Payload( robot.left_hand_pose().inverse()*boxPose, mass, inertia ) );
 		}			
 		else if(command == "home")
 		{
