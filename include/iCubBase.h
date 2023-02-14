@@ -47,6 +47,12 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
 				       const std::vector<double> &times);
+		
+		bool move_object(const Eigen::Isometry3d &pose,
+		                 const double &time);
+		                 
+		bool move_object(const std::vector<Eigen::Isometry3d> &poses,
+		                 const std::vector<double> &times);
 				       
 		bool grasp_object(const Payload &_payload);
 		
@@ -61,6 +67,9 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool translate(const Eigen::Vector3d &left,                                         // Translate both hands by the given amount
 		               const Eigen::Vector3d &right,
 		               const double &time);
+		               
+		Eigen::Isometry3d left_hand_pose()  const { return this->leftPose;  }
+		Eigen::Isometry3d right_hand_pose() const { return this->rightPose; }
 				      
 		void halt();
 	
@@ -274,6 +283,56 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                              Move the box to a given pose                                      //          
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::move_object(const Eigen::Isometry3d &pose,
+                           const double &time)
+{
+	if(time < 0)
+	{
+		std::cerr << "[ERROR] [ICUB] move_object(): "
+		          << "Time of " << time << " cannot be negative!" << std::endl;
+		          
+		return false;
+	}
+	else
+	{
+		// Insert in to std::vector objects and pass on to spline generator
+		std::vector<Eigen::Isometry3d> poses;
+		poses.push_back(pose);
+		
+		std::vector<double> times;
+		times.push_back(time);
+		
+		return move_object(poses,times);                                                    // Pass onward for spline generation
+	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                            Move the box through multiple poses                                 //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::move_object(const std::vector<Eigen::Isometry3d> &poses,
+                           const std::vector<double> &times)
+{
+	if( isRunning() ) stop();                                                                   // Stop any control threads that are running
+	
+	this->controlSpace = cartesian;                                                             // Ensure that we are running in Cartesian mode
+	
+	// Set up the times for the trajectory
+	std::vector<double> t; t.push_back(0);                                                      // Start immediately
+	t.insert(t.end(),times.begin(),times.end());                                                // Add on the rest of the times
+	
+	// Set up the waypoints for the object
+	std::vector<Eigen::Isometry3d> waypoints; waypoints.push_back( this->payload.pose() );      // First waypoint is current pose
+	waypoints.insert( waypoints.end(), poses.begin(), poses.end() );                            // Add on additional waypoints to the end
+	this->payloadTrajectory = CartesianTrajectory(waypoints, t);                                // Create new trajectory to follow
+	
+	start(); // go immediately to threadInit()
+	
+	return true;
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                               Grasp an object with two hands                                   //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool iCubBase::grasp_object(const Payload &_payload)
@@ -290,7 +349,9 @@ bool iCubBase::grasp_object(const Payload &_payload)
 		this->isGrasping = true;
 		this->payload = _payload;
 		
-		return true;
+		update_state();
+		
+		return move_object( this->payload.pose(), 5.0 );
 	}
 }
   
@@ -583,7 +644,7 @@ bool iCubBase::update_state()
 				     -r(1),  r(0),    0 ;
 				
 				this->G.block(3,0,3,3) =  S;
-				this->C.block(0,3,3,3) = -S;
+				this->C.block(0,3,3,3) =  S;
 				
 				// Right hand component
 				r = this->payload.pose().translation() - this->rightPose.translation();
@@ -593,16 +654,8 @@ bool iCubBase::update_state()
 				     -r(1),  r(0),    0;
 				     
 				this->G.block(3,6,3,3) = S;
-				this->C.block(0,9,3,3) = S;
+				this->C.block(0,9,3,3) =-S;
 				
-				std::cout << "\nHere is G:" << std::endl;
-				std::cout << this->G << std::endl;
-				
-				std::cout << "\nHere is C:" << std::endl;
-				std::cout << this->C << std::endl;
-				
-				std::cout << "\nHere is G*C.transpose():" << std::endl;
-				std::cout << this->G*this->C.transpose() << std::endl;
 			}
 			
 			return true;
