@@ -28,11 +28,7 @@ class Payload
 		        const double &Ixz,
 		        const double &Iyy,
 		        const double &Iyz,
-		        const double &Izz) :
-		Payload(_localPose, Eigen::MatrixXd(3,3) << Ixx, Ixy, Ixz,
-		                                            Ixy, Iyy, Iyz,
-		                                            Ixz, Iyz, Izz).finished()) {}
-		                                     
+		        const double &Izz);
 		        
 		Eigen::Isometry3d pose() const { return this->globalPose; }                         // Get the pose in the global coordinates
 		
@@ -61,6 +57,8 @@ class Payload
 		Eigen::Matrix<double,3,3> inertiaDerivative;
 		
 		Eigen::Matrix<double,3,1> twist;
+		
+		void check_inertia();
 	
 };                                                                                                  // Semicolon needed after class declaration
 
@@ -74,11 +72,52 @@ Payload::Payload(const Eigen::Isometry3d &_localPose,
                  mass(_mass),
                  localInertia(inertia)
 {
-	// Check that the matrix is symmetric
-	if( (inertia - inertia.transpose()).norm() > 1e-03 )
+	check_inertia();
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                    CONSTRUCTOR                                                 //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Payload::Payload(const Eigen::Isometry3d &_localPose,
+		 const double &_mass,
+	         const double &Ixx,
+	         const double &Ixy,
+	         const double &Ixz,
+	         const double &Iyy,
+	         const double &Iyz,
+	         const double &Izz) :
+	         localPose(_localPose),
+	         mass(_mass)
+{
+	this->localInertia << Ixx, Ixy, Ixz,
+	                      Ixy, Iyy, Iyz,
+	                      Ixz, Iyz, Izz;
+	                      
+	check_inertia();
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                 Ensure that the inertia properties are sound on construction                   //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void Payload::check_inertia()
+{
+	// Ensure that the mass is positive
+	if( this->mass < 0 )
+	{
+		std::cout << "[ERROR] [PAYLOAD] Constructor(): "
+		          << "Mass is " << this->mass << " but cannot be negative!" << std::endl;
+		
+		this->mass *= -1;                                                                   // Ensure positive
+	}
+	
+	// Ensure inertia matrix is positive definite
+	if( (this->localInertia - this->localInertia.transpose()).norm() > 1e-03 )
 	{
 		std::cerr << "[ERROR] [PAYLOAD] Constructor(): "
 		          << "The inertia matrix is not symmetric!" << std::endl;
+		          
+		
+		this->localInertia = ( this->localInertia + this->localInertia.transpose() ) / 2;   // Force the inertia to be positive definite and symmetric
 	}
 }
 
