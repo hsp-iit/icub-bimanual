@@ -128,6 +128,7 @@ void iCub2::run()
 	else
 	{
 		Eigen::VectorXd xdot = track_cartesian_trajectory(elapsedTime);                     // Feedforward + feedback control
+		
 		Eigen::VectorXd redundantTask = 0.1*(this->setPoint - this->q);                     // As it says on the label
 		
 		// H = [ 0  J ]
