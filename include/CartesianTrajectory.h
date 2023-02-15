@@ -19,6 +19,9 @@ class CartesianTrajectory
 		
 		CartesianTrajectory(const std::vector<Eigen::Isometry3d> &poses,
 		                    const std::vector<double>            &times);                   // Full constructor
+		                    
+		                    
+		Eigen::Isometry3d get_pose(const double &time);
 		            
 		bool get_state(Eigen::Isometry3d         &pose,
 		               Eigen::Matrix<double,6,1> &twist,
@@ -98,6 +101,38 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 		
 		this->isValid = true;
 	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                          Get the desired pose for the given time                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Isometry3d CartesianTrajectory::get_pose(const double &time)
+{
+	double t = time;
+	
+	if(not this->isValid)
+	{
+		std::cerr << "[ERROR] [CARTESIAN TRAJECTORY] get_pose(): "
+		          << "There was a problem during the construction of this object. "
+		          << "Could not get the pose." << std::endl;
+		          
+		t = 0.0;
+	}
+
+	double pos[3];
+	double rpy[3];
+	
+	for(int i = 0; i < 3; i++)
+	{
+		pos[i] = this->spline[ i ].evaluatePoint(t);
+		rpy[i] = this->spline[i+3].evaluatePoint(t);
+	}
+	
+	// Constructor and return the pose object
+	return  Eigen::Translation3d(pos[0],pos[1],pos[2])                                          // Translation first
+	      * Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX())                                 // Rotation about x
+              * Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY())                                 // Rotation about y
+              * Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ());                                // Rotation about z
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
