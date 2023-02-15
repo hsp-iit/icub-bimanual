@@ -120,8 +120,9 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		
 		iDynTree::Transform Eigen_to_iDynTree(const Eigen::Isometry3d &T);
 		
-		// Virtual functions to be overridden in derived class                                
-		virtual void compute_speed_limits(double &lower, double &upper, const int &i) = 0;	
+		// Virtual functions to be overridden in derived class                            
+		
+		virtual void compute_joint_limits(double &lower, double &upper, const int &i) = 0;    
 		virtual Eigen::VectorXd track_joint_trajectory(const double &time) = 0;                 // Solve feedforward + feedback control         
 		virtual Eigen::Matrix<double,12,1> track_cartesian_trajectory(const double &time) = 0;
 		
@@ -543,7 +544,15 @@ void iCubBase::halt()
 {
 	if(isRunning()) stop();                                                                     // Stop any control threads that are running
 	
-	for(int i = 0; i < this->n; i++) send_velocity_command(0.0, i);                             // Stop the joints from moving
+	if(this->controlMode == position)
+	{
+		for(int i = 0; i < this->n; i++) send_joint_command(i,0.0);
+	}
+	else
+	{
+		// NEED TO MODIFY THIS TO NEGATE GRAVITY
+		for(int i = 0; i < this->n; i++) send_joint_command(i,0.0);
+	}
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -584,8 +593,8 @@ bool iCubBase::update_state()
 	if(JointInterface::read_encoders())
 	{	
 		// Get the values from the JointInterface class (is there a smarter way???)
-		std::vector<double> temp_position = get_joint_positions();
-		std::vector<double> temp_velocity = get_joint_velocities();
+		std::vector<double> temp_position = joint_positions();
+		std::vector<double> temp_velocity = joint_velocities();
 		
 		// Transfer joint state values for use in this class
 		for(int i = 0; i < this->n; i++)
