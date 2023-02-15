@@ -34,29 +34,26 @@ class JointInterface
 		                     	
 		bool read_encoders();                                                               // Update the joint states internally
 		
-		bool send_velocity_command(const double &command, const int &i);
+		bool send_joint_command(const int &i, const double &command);
 		
-		bool send_velocity_commands(const std::vector<double> &commands);                   // Send velocity commands to several motors
+		std::vector<double> joint_positions()  const { return this->pos; }                  // As it says on the label
 		
-		bool send_torque_commands(const std::vector<double> &commands);
-		
-		std::vector<double> get_joint_positions()  const { return this->pos; }              // As it says on the label
-		
-		std::vector<double> get_joint_velocities() const { return this->vel; }              // As it says on the label
+		std::vector<double> joint_velocities() const { return this->vel; }                  // As it says on the label
 		
 		void close();
         
         protected:
+        
+		enum ControlMode {position, force} controlMode;
+		
 		int n;                                                                              // Number of joints being controlled
 		
 		std::vector<std::array<double,2>> pLim;
-		std::vector<double>   vLim;                                                         // Maximum velocity for the joint motors
+		std::vector<double> vLim;                                                           // Maximum velocity for the joint motors
                                 
 	private:
 		// Properties
 		bool isValid = false;                                                               // Won't do anything if false	
-		
-		enum ControlMode {velocity, _torque} controlMode;
 		
 		std::vector<double> pos;                                                            // Vector of current joint positions
 		std::vector<double> vel;                                                            // Vector of current joint velocities
@@ -67,9 +64,8 @@ class JointInterface
 		yarp::dev::IControlLimits*   limits;                                                // Joint limits?
 		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 		yarp::dev::IEncoders*        encoders;                                              // Joint position values (in degrees)
-		yarp::dev::IVelocityControl* controller;                                            // Low-level motor controller via YARP
-//              yarp::dev::iVelocityControl  vController;
-//              yarp::dev::iTorqueControl    tController;
+		yarp::dev::IPositionControl* pController;                                           // Position controller
+                yarp::dev::ITorqueControl*   tController;
 		yarp::dev::PolyDriver        driver;                                                // Device driver
 	
 };                                                                                                  // Semicolon needed after class declaration
@@ -82,7 +78,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
                                n(jointList.size())
 {
 	// NEED THIS AS AN ARGUMENT FOR THE CONSTRUCTOR
-	this->controlMode = velocity;
+	this->controlMode = position;
 
 	// Resize std::vector objects
 	this->pos.resize(this->n);                                                                  // Resize position vector
@@ -92,7 +88,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 	this->pLim.resize(this->n);                                                                 // Resize position limits vector
 	this->vLim.resize(this->n);                                                                 // Resize max velocity vector
 	
-	/************************** I copied this code from elsewhere *****************************/
+	////////////////////////// I copied this code from elsewhere ///////////////////////////////
 	
 	// Open up device drivers
 	yarp::os::Property options;									
@@ -112,7 +108,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 	yarp::os::Property &remoteControlBoardsOpts = options.addGroup("REMOTE_CONTROLBOARD_OPTIONS");
 			    remoteControlBoardsOpts.put("writeStrict", "on");
 			    
-	/******************************************************************************************/
+	////////////////////////////////////////////////////////////////////////////////////////////
 	
 	if(not this->driver.open(options))
 	{
@@ -121,10 +117,10 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 	}
 	else
 	{	
-		if(not this->driver.view(this->controller))
+		if(not this->driver.view(this->pController))
 		{
 			std::cerr << "[ERROR] [JOINT INTERFACE] Constructor: "
-			          << "Unable to configure the controller for the joint motors." << std::endl;
+			          << "Unable to configure the position controller for the joint motors." << std::endl;
 		}
 		else if(not this->driver.view(this->mode))
 		{
@@ -207,10 +203,25 @@ bool JointInterface::activate_control()
 	{
 		for(int i = 0; i < this->n; i++)
 		{
-			this->mode->setControlMode(i, VOCAB_CM_VELOCITY);                           // Activate velocity control mode on the joint motors
-			this->controller->setRefAcceleration(i, std::numeric_limits<double>::max()); // CHANGE THIS?
-			this->controller->velocityMove(i, 0.0);					// Ensure initial velocity is zero
-		}	
+			this->mode->setControlMode(i,VOCAB_CM_POSITION);
+			this->pController->setRefSpeed(i, std::numeric_limits<double>::max());
+			this->pController->setRefAcceleration(i, std::numeric_limits<double>::max());
+			
+			send_joint_command(i,0.0);
+		/*
+			if(this->controlMode == position)
+			{
+				this->mode->setControlMode(i,VOCAB_CM_POSITION);                    // Set position control mode
+				this->send_joint_command(i,0.0);
+			}
+			else
+			{
+				this->mode->setControlMode(i,VOCAB_CM_TORQUE);                      // Set velocity control mode
+				this->tController->setRefTorque(i,0.0);                             // SEND GRAVITY NEGATION INSTEAD?
+			}
+		*/
+		}
+			
 		return true;
 	}  
 }
@@ -303,56 +314,27 @@ bool JointInterface::read_encoders()
 	}
 }
 
-
   ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                              Send a velocity command to a joint motor                          //
+ //                Send a joint command (position or torque) to a single joint motor               //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool JointInterface::send_velocity_command(const double &command, const int &i)
+bool JointInterface::send_joint_command(const int &i, const double &command)
 {
 	if(i >= this->n)
 	{
-		std::cerr << "[ERROR] [JOINT INTERFACE] send_velocity_command(): "
-		          << "There are only " << this->n << " joints, but your argument was for "
-		          << " joint " << i+1 << "." << std::endl;
+		std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
+		          << "You specified joint number " << i << " but the range for joint indices "
+		          << "is " << 0 << " to " << this->n-1 << "." << std::endl;
 		
 		return false;
 	}
 	else
 	{
-		this->controller->velocityMove(i,command*180/M_PI);                                 // Be sure to convert to deg/s!
-		return true;
-	}
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                                    Send commands to the joints                                 //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool JointInterface::send_velocity_commands(const std::vector<double> &commands)
-{
-	if(not this->isValid)
-	{
-		std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_commands(): "
-		          << "There was a problem during the construction of this object. "
-		          << "Joint commands cannot be sent." << std::endl;
-		          
-		return false;
-	}
-	else if(commands.size() != this->n)
-	{
-		std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_commands(): "
-		          << "The input vector had " << commands.size() << " elements, "
-		          << "but this robot has " << this->n << " joints!" << std::endl;
-		          
-		return false;
-	}
-	else
-	{
-		if(this->controlMode == velocity)
+		if(this->controlMode == position)
 		{
-			for(int i = 0; i < this->n; i++) this->controller->velocityMove(i,commands[i]*180/M_PI);
+			this->pController->relativeMove(i,command*180/M_PI);                       // Convert from radians to degrees
+//			this->pController->positionMove(i,command*180/M_PI);                        // Convert from radians to degrees
 		}
-//		else    for(int i = 0; i < this->n; i++) this->controller->sendTorqueCommand(i,commands[i]);
-	
+		else 	std::cout << "[ERROR] [JOINT INTERFACE] send_joint_command(): Not yet programmed!" << std::endl;
 		return true;
 	}
 }
