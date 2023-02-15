@@ -5,10 +5,10 @@
 #ifndef ICUB2_H_
 #define ICUB2_H_
 
-#include <Eigen/Geometry>                                                                               // Eigen::Isometry3d and the like
-#include <iCubVelocity.h>                                                                               // Custom class: most functions defined here
+#include <Eigen/Geometry>                                                                           // Eigen::Isometry3d and the like
+#include <PositionControl.h>                                                                        // Custom class: most functions defined here
 		        
-class iCub2 : public iCubVelocity
+class iCub2 : public PositionControl
 {
 	public:
 		iCub2(const std::string &pathToURDF,
@@ -36,10 +36,10 @@ class iCub2 : public iCubVelocity
 iCub2::iCub2(const std::string &pathToURDF,
              const std::vector<std::string> &jointNames,
              const std::vector<std::string> &portNames) :
-             iCubVelocity(pathToURDF,
-                          jointNames,
-                          portNames,
-                          Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())))
+             PositionControl(pathToURDF,
+                             jointNames,
+                             portNames,
+                             Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())))
 {
 	// Lower the gains since we're running in velocity mode
 	set_joint_gains(5.0, 0.01);                                                                 // We don't actually care about the derivative
@@ -69,17 +69,18 @@ iCub2::iCub2(const std::string &pathToURDF,
 	this->b.tail(5) = this->b.head(5);                                                          // Same constraint for the right arm
 	
 	// In discrete time we have:
-	// dt*A*qdot >= -(A*q + b)
+	// A*(q + dq) >= b ---> A*dq > -(A*q + b)
 	
 	// The constraint matrix is unique to iCub2.
+	// NOTE: First column here pertains to Lagrange multipliers when running in Cartesian mode
 	// B = [ 0   -I ]
 	//     [ 0    I ]
-	//     [ 0 dt*A ]
+	//     [ 0    A ]
 	this->B.resize(10+2*this->n,12+this->n);                                                    // 2*n for joint limits, 10 for shoulder limits
 	this->B.block(        0, 0,10+2*this->n,12)      = Eigen::MatrixXd::Zero(10+2*this->n,12);
 	this->B.block(        0,12,     this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
 	this->B.block(  this->n,12,     this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
-	this->B.block(2*this->n,12,          10,this->n) = this->dt*this->A;
+	this->B.block(2*this->n,12,          10,this->n) = this->A;
 	
 	this->z.resize(10+2*this->n);
 	
@@ -104,7 +105,53 @@ void iCub2::run()
 	update_state();                                                                             // Update kinematics, dynamics, constraints
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since start of control loop
+
+	Eigen::VectorXd dq(this->n); dq.setZero();                                                  // We want to compute this
 	
+	Eigen::VectorXd q0(this->n); dq.setZero();                                                  // Start point for the QP solver
+	
+	// We need to compute constraints for this new control loop
+	for(int i = 0; i < this->n; i++)
+	{
+		double lower, upper;
+		compute_joint_limits(lower, upper, i);                                              // Get limits for current state
+		
+		q0(i) = 0.5*(lower + upper);                                                        // Initial guess is half way between limits
+		
+		this->z(i)         = -upper;                                                        // Upper limit on motion
+		this->z(i+this->n) =  lower;                                                        // Lower limit on motion
+	}
+		this->z.tail(10) = -(A*this->q + b);                                                // Shoulder constraints
+		
+	
+	if(this->controlSpace == joint)
+	{
+		Eigen::VectorXd desired = track_joint_trajectory(elapsedTime);                      // Get the desired velocity
+		
+		// Solve a QP problem of the form:
+		// min 0.5*x'*H*x + x'*f
+		// subject to: B*x > z
+		
+		dq = solve(Eigen::MatrixXd::Identity(this->n,this->n),                              // H
+			  -desired,                                                                 // f
+			  this->B.block(0,12,2*this->n+10,this->n),                                 // Remove part pertaining to Lagrange multipliers
+			  this->z,
+			  q0);
+			  
+		dq = desired;
+	}
+	else
+	{
+		std::cout << "\nWorker bees can leave." << std::endl;
+		std::cout << "Even drones can fly away." << std::endl;
+		std::cout << "The Queen is their slave.\n" << std::endl;
+		
+		dq = Eigen::VectorXd::Zero(this->n);
+	}
+	
+	for(int i = 0; i < this->n; i++) send_joint_command(i,dq(i));
+	
+/*	This is now all obsolete
 	Eigen::VectorXd vel = Eigen::VectorXd::Zero(this->n);                                       // We want to compute this
 	
 	// Compute the constraint vector and start point
@@ -116,6 +163,8 @@ void iCub2::run()
 	
 	if(this->controlSpace == joint)
 	{
+		for(int i = 0; i < this->n; i	
+		
 		Eigen::VectorXd desiredVel = track_joint_trajectory(elapsedTime);                   // As it says on the label              
 		
 		// We need to solve a unique constrained problem for the iCub 2
@@ -178,11 +227,12 @@ void iCub2::run()
 			f.tail(this->n) = -vel;
 			
 			vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);
-*/
+
 		}
 	}
 	
 	for(int i = 0; i < this->n; i++) send_velocity_command(vel(i),i);
+*/
 }
 
 #endif
