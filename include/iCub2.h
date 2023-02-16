@@ -106,19 +106,100 @@ void iCub2::run()
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since start of control loop
 
-	Eigen::VectorXd dq(this->n); dq.setZero();                                                  // We want to compute this
+	Eigen::VectorXd dq = Eigen::VectorXd::Zero(this->n);
+	Eigen::VectorXd q0 = Eigen::VectorXd::Zero(this->n);
+	
+	// Set up constraints for new control loop
+	for(int i = 0; i < this->n; i++)
+	{
+		double lower, upper;
+		compute_joint_limits(lower, upper, i);
+		this->z(i)         = -upper;
+		this->z(i+this->n) =  lower;
+		q0(i)              = 0.5*(lower + upper);
+	}
+		this->z.tail(10)   = -(this->A*this->q + this->b);                                  // Shoulder constraints
 	
 	if(this->controlSpace == joint)
 	{
 		// Here we solve for dq instead of q directly since it synthesises better with the
 		// Cartesian control formulation
 		
+		Eigen::VectorXd desired = track_joint_trajectory(elapsedTime);                      // Desired position change for given time
 		
-		dq = track_joint_trajectory(elapsedTime);
+		// Solve a QP problem of the form:
+		// 0.5*x'*H*x + x'*f
+		// subject to: B*x > z
+		
+		dq = solve(Eigen::MatrixXd::Identity(this->n,this->n),                              // H
+		          -desired,                                                                 // f
+		           this->B.block(0,12,10+2*this->n,this->n),                                // Remove component for Lagrange multipliers in Cartesian mode
+		           this->z,
+		           q0);
 	}
+	else // this->controlSpace == cartesian
+	{	
+		Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);
+		
+//		Eigen::VectorXd dx = Eigen::VectorXd::Zero(12);
+//		dx(1) = -0.001;
+//		dx(7) =  0.001;
+		
+		Eigen::VectorXd redundantTask = 0.01*(this->setPoint - this->q);                     // As it says on the label
+		
+		// H = [ 0  J ]
+		//     [ J' M ]
+		Eigen::MatrixXd H(12+this->n,12+this->n);
+		H.block( 0, 0,     12,     12).setZero();
+		H.block( 0,12,     12,this->n) = this->J;
+		H.block(12, 0,this->n,     12) = this->J.transpose();
+		H.block(12,12,this->n,this->n) = this->M;
+		
+		// f = [      -dx       ]
+		//   = [ -M*redundantTask ]
+		Eigen::VectorXd f(12+this->n);
+		f.head(12)      = -dx;                                                            // Primary task
+		f.tail(this->n) = -M*redundantTask;
+		
+		// Compute the start point for the QP solver
+		Eigen::VectorXd startPoint(12+this->n);
+		startPoint.head(12) = (this->J*this->Mdecomp.inverse()*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - dx); // These are the Lagrange multipliers
+		                       
+		startPoint.tail(this->n) = q0;                           // These are the joint velocities
+		
+		dq = (solve(H,f,this->B,z,startPoint)).tail(this->n);                               // We can ignore the Lagrange multipliers
+		
+		// Re-solve the problem subject to grasp contraints Jc*qdot = 0
+		if(this->isGrasping)
+		{
+/*			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
+			
+			// Set up the new start point for the solver
+			startPoint.resize(6+this->n);
+			startPoint.head(6) = (Jc*this->Mdecomp.inverse()*Jc.transpose())*Jc*vel;    // Lagrange multipliers
+			startPoint.tail(12) = vel;                                                  // Previous solution
+			
+			// H = [ 0   Jc ]
+			//     [ Jc' M  ]
+			H.resize(6+this->n,6+this->n);
+			H.block(0,0,6,6).setZero();
+			H.block(0,6,6,this->n) = Jc;
+			H.block(6,0,this->n,6) = Jc.transpose();
+			H.block(6,6,this->n,this->n) = M;
+			
+			// f = [   0  ]
+			//     [ -vel ]
+			f.resize(6+this->n);
+			f.head(6).setZero();
+			f.tail(this->n) = -vel;
+			
+			vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);
+*/		
+		}
+	}
+	this->qHat += dq; // Integrate
 	
-	for(int i = 0; i < this->n; i++) send_joint_command(i,dq(i)+this->q(i));
-
+	for(int i = 0; i < this->n; i++) send_joint_command(i,this->qHat(i));
 }
 
 #endif
