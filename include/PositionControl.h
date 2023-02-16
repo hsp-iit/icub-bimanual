@@ -49,7 +49,7 @@ void PositionControl::compute_joint_limits(double &lower, double &upper, const i
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::threadRelease()
 {
-	for(int i = 0; i < this->n; i++) send_joint_command(i,0.0);                          // Maintain current joint position
+	for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                          // Maintain current joint position
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -72,17 +72,20 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 		if(this->leftControl)
 		{
 			pose = this->leftTrajectory.get_pose(time);
-			dx.head(6) = pose_error(pose,this->leftPose);
+			dx.head(3) = pose_error(pose,this->leftPose).head(3);
+//			dx.head(6) = pose_error(pose,this->leftPose);
 		}
 //		else	Set column for torso joints to zero
+
+		std::cout << "\nHere is the step for the left hand:" << std::endl;
+		std::cout << dx.head(6) << std::endl;
 		
 		if(this->rightControl)
 		{
 			pose = this->rightTrajectory.get_pose(time);
 			dx.tail(6) = pose_error(pose,this->rightPose);
+			dx.tail(3).setZero();
 		}
-//		else 	Set column for torso joints to zero
-
 	}
 	
 	return dx;
