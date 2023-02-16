@@ -20,7 +20,7 @@ class PositionControl : public iCubBase
 	        iCubBase(pathToURDF,
 	                 jointNames,
 	                 portNames,
-	                 _torsoPose) {}
+	                 _torsoPose) { this->qHat = this->q; }
 		
 		// Inherited from the iCubBase class   
 		void compute_joint_limits(double &lower, double &upper, const int &i);
@@ -30,7 +30,12 @@ class PositionControl : public iCubBase
 		Eigen::VectorXd track_joint_trajectory(const double &time);
 		
 		// Inherited from the yarp::PeriodicThread class
+		bool threadInit();
 		void threadRelease();
+		
+	protected:
+		Eigen::VectorXd qHat;                                                               // Estimated joint configuration
+		
 };                                                                                                  // Semicolon needed after class declaration
 
 
@@ -39,9 +44,20 @@ class PositionControl : public iCubBase
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::compute_joint_limits(double &lower, double &upper, const int &i)
 {
-	lower = std::max( this->pLim[i][0] - this->q[i], -this->dt*this->vLim[i] );                 // Maximum between position and velocity
-	
-	upper = std::min (this->pLim[i][1] - this->q[i],  this->dt*this->vLim[i] );                 // Minimum between position and velocity
+	lower = this->pLim[i][0] - this->qHat[i];
+	upper = this->pLim[i][1] - this->qHat[i];
+}
+
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                 Initialise the control thread                                  //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool PositionControl::threadInit()
+{
+//	this->qHat = this->q;
+	this->startTime = yarp::os::Time::now();
+	return true;
+	// jump immediately to run();
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +65,7 @@ void PositionControl::compute_joint_limits(double &lower, double &upper, const i
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::threadRelease()
 {
-	for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                          // Maintain current joint position
+	for(int i = 0; i < this->n; i++) send_joint_command(i,this->qHat[i]);                       // Maintain current joint position
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -60,33 +76,22 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 	// Variables used in this scope
 	Eigen::Matrix<double,12,1> dx; dx.setZero();                                                // Value to be returned
 	Eigen::Isometry3d pose;                                                                     // Desired pose
+	Eigen::Matrix<double,6,1> vel, acc;
 	
-	if(this->isGrasping)
-	{
-		pose = this->payloadTrajectory.get_pose(time);
-		
-		dx = this->G.transpose() * pose_error(pose,this->payload.pose());
-	}
-	else
-	{
+
 		if(this->leftControl)
 		{
-			pose = this->leftTrajectory.get_pose(time);
-			dx.head(3) = pose_error(pose,this->leftPose).head(3);
-//			dx.head(6) = pose_error(pose,this->leftPose);
+			this->leftTrajectory.get_state(pose,vel,acc,time);
+			
+			dx.head(6) = this->dt*vel;
 		}
-//		else	Set column for torso joints to zero
-
-		std::cout << "\nHere is the step for the left hand:" << std::endl;
-		std::cout << dx.head(6) << std::endl;
 		
-		if(this->rightControl)
+		if(this->leftControl)
 		{
-			pose = this->rightTrajectory.get_pose(time);
-			dx.tail(6) = pose_error(pose,this->rightPose);
-			dx.tail(3).setZero();
+			this->rightTrajectory.get_state(pose,vel,acc,time);
+			
+			dx.tail(6) = this->dt*vel;
 		}
-	}
 	
 	return dx;
 }
@@ -100,7 +105,7 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 	
 	for(int i = 0; i < this->n; i++)
 	{
-		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->q[i];
+		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->qHat[i];
 	}
 	
 	return dq;
