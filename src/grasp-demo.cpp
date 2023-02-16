@@ -6,8 +6,8 @@
 #include <iCub2Configurations.h>
 #include <yarp/os/RpcServer.h>
 
-double long_time  = 5.0;
-double short_time = 2.0;
+double long_time  = 6;
+double short_time = 3;
 
 double mass = 0.1;
 Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0,
