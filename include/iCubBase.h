@@ -127,9 +127,9 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		virtual Eigen::Matrix<double,12,1> track_cartesian_trajectory(const double &time) = 0;
 		
 		// Functions related to the PeriodicThread class
-		bool threadInit();
-//		void threadRelease();                                                               // This is defined in iCubVelocity or iCubTorque
-//              void run();                                                                         // This is defined in one of the derived iCub classes
+//		bool threadInit();                                                                  // Defined in PositionControl.h
+//		void threadRelease();                                                               // Defined in PositionContro.h
+//              void run();                                                                         // Defined in iCub2.h
 
 };                                                                                                  // Semicolon needed after class declaration
 
@@ -544,25 +544,7 @@ void iCubBase::halt()
 {
 	if(isRunning()) stop();                                                                     // Stop any control threads that are running
 	
-	if(this->controlMode == position)
-	{
-		for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                  // Maintain current joint position
-	}
-	else
-	{
-		// NEED TO MODIFY THIS TO NEGATE GRAVITY
-		for(int i = 0; i < this->n; i++) send_joint_command(i,0.0);
-	}
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                                 Initialise the control thread                                  //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::threadInit()
-{
-	this->startTime = yarp::os::Time::now();
-	return true;
-	// jump immediately to run();
+	for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                          // Hold current joint position
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -664,6 +646,16 @@ bool iCubBase::update_state()
 				     
 				this->G.block(3,6,3,3) = S;
 				this->C.block(0,9,3,3) =-S;
+/*				
+				std::cout << "\nHere is the grasp matrix G:" << std::endl;
+				std::cout << G << std::endl;
+				
+				std::cout << "\nHere is the constraint matrix C:" << std::endl;
+				std::cout << C << std::endl;
+				
+				std::cout << "\nHere is G*C.transpose():" << std::endl;
+				std::cout << G*C.transpose() << std::endl;
+*/
 				
 			}
 			
