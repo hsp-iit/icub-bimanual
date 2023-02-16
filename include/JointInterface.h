@@ -64,7 +64,8 @@ class JointInterface
 		yarp::dev::IControlLimits*   limits;                                                // Joint limits?
 		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 		yarp::dev::IEncoders*        encoders;                                              // Joint position values (in degrees)
-		yarp::dev::IPositionControl* pController;                                           // Position controller
+		yarp::dev::IPositionDirect*  pController;
+//		yarp::dev::IPositionControl* pController;                                           // Position controller
                 yarp::dev::ITorqueControl*   tController;
 		yarp::dev::PolyDriver        driver;                                                // Device driver
 	
@@ -203,27 +204,19 @@ bool JointInterface::activate_control()
 	{
 		for(int i = 0; i < this->n; i++)
 		{
-			this->mode->setControlMode(i,VOCAB_CM_POSITION);
-			this->pController->setRefSpeed(i, std::numeric_limits<double>::max());
-			this->pController->setRefAcceleration(i, std::numeric_limits<double>::max());
+			if(not this->mode->setControlMode(i,VOCAB_CM_POSITION_DIRECT))
+			{
+				std::cerr << "[ERROR] [JOINT INTERFACE] activate_control(): "
+				          << "Unable to set the control mode for joint " << i+1 << "." << std::endl;
+				 
+				return false;
+			}
 			
-			send_joint_command(i,0.0);
-		/*
-			if(this->controlMode == position)
-			{
-				this->mode->setControlMode(i,VOCAB_CM_POSITION);                    // Set position control mode
-				this->send_joint_command(i,0.0);
-			}
-			else
-			{
-				this->mode->setControlMode(i,VOCAB_CM_TORQUE);                      // Set velocity control mode
-				this->tController->setRefTorque(i,0.0);                             // SEND GRAVITY NEGATION INSTEAD?
-			}
-		*/
+			send_joint_command(i,this->pos[i]);                                         // Maintain current joint position
 		}
-			
+
 		return true;
-	}  
+	}
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -329,12 +322,12 @@ bool JointInterface::send_joint_command(const int &i, const double &command)
 	}
 	else
 	{
-		if(this->controlMode == position)
+		if(not this->pController->setPosition(i,command*180/M_PI))
 		{
-			this->pController->relativeMove(i,command*180/M_PI);                       // Convert from radians to degrees
-//			this->pController->positionMove(i,command*180/M_PI);                        // Convert from radians to degrees
+			std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
+			          << "Could not send a command for joint " << i+1 << "." << std::endl;
 		}
-		else 	std::cout << "[ERROR] [JOINT INTERFACE] send_joint_command(): Not yet programmed!" << std::endl;
+		
 		return true;
 	}
 }
