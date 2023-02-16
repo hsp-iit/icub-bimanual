@@ -29,11 +29,11 @@ add_subdirectory(gazebo)                                                        
 include_directories(include)                                                                        # Location of header files
 
 #################################### Executables to be compiled ####################################
-add_executable(test_build src/test_build.cpp)
-target_link_libraries(test_build Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
+#add_executable(test_build src/test_build.cpp)
+#target_link_libraries(test_build Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
 add_executable(grasp-demo src/grasp-demo.cpp)
 target_link_libraries(grasp-demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
-add_executable(qp_test src/qp_test.cpp)
-target_link_libraries(qp_test Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
+#add_executable(qp_test src/qp_test.cpp)
+#target_link_libraries(qp_test Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
