@@ -546,7 +546,7 @@ void iCubBase::halt()
 	
 	if(this->controlMode == position)
 	{
-		for(int i = 0; i < this->n; i++) send_joint_command(i,0.0);
+		for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                  // Maintain current joint position
 	}
 	else
 	{
