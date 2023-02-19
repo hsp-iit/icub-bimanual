@@ -32,7 +32,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		         const Eigen::Isometry3d        &_torsoPose);
 		
 		// Basic control functions
-		bool is_grasping() const { return this->isGrasping; }
+//		bool is_grasping() const { return this->isGrasping; }
 		
 		bool move_to_pose(const Eigen::Isometry3d &leftPose,
 		                  const Eigen::Isometry3d &rightPose,
@@ -48,15 +48,15 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
 				       const std::vector<double> &times);
 		
-		bool move_object(const Eigen::Isometry3d &pose,
-		                 const double &time);
+//		bool move_object(const Eigen::Isometry3d &pose,
+//		                 const double &time);
 		                 
-		bool move_object(const std::vector<Eigen::Isometry3d> &poses,
-		                 const std::vector<double> &times);
+//		bool move_object(const std::vector<Eigen::Isometry3d> &poses,
+//		                 const std::vector<double> &times);
 				       
-		bool grasp_object(const Payload &_payload);
+//		bool grasp_object(const Payload &_payload);
 		
-		bool release_object();
+//		bool release_object();
 				       
 		bool print_hand_pose(const std::string &whichHand);                                 // As it says on the label
 		
@@ -94,7 +94,8 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		
 		// Cartesian control
 		bool leftControl, rightControl;                                                     // Switch for activating left and right control
-		CartesianTrajectory leftTrajectory, rightTrajectory, payloadTrajectory;             // Individual trajectories for left, right hand
+		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Individual trajectories for left, right hand
+//		CartesianTrajectory payloadTrajectory;
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
 		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
@@ -111,6 +112,10 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		iDynTree::Transform          torsoPose;                                             // Needed for inverse dynamics; not used yet
 			                       	
 		// Internal functions
+		
+		bool update_state(const Eigen::VectorXd &_pos, const Eigen::VectorXd &_vel);
+		
+		
 		bool update_state();                                                                // Get new joint state, update kinematics
 		
 		Eigen::Matrix<double,6,1> pose_error(const Eigen::Isometry3d &desired,
@@ -283,6 +288,7 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 	return true;
 }
 
+/*
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                              Move the box to a given pose                                      //          
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -376,7 +382,7 @@ bool iCubBase::release_object()
 		
 		return false;
 	}
-}
+}*/
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                          Move the joints to a desired configuration                           //
@@ -655,8 +661,7 @@ bool iCubBase::update_state()
 				
 				std::cout << "\nHere is G*C.transpose():" << std::endl;
 				std::cout << G*C.transpose() << std::endl;
-*/
-				
+*/	
 			}
 			
 			return true;
