@@ -9,7 +9,6 @@
 
 #include <iCubBase.h>
 
-
 class PositionControl : public iCubBase
 {
 	public:
@@ -20,7 +19,7 @@ class PositionControl : public iCubBase
 	        iCubBase(pathToURDF,
 	                 jointNames,
 	                 portNames,
-	                 _torsoPose) { this->qHat = this->q; }
+	                 _torsoPose) {}
 		
 		// Inherited from the iCubBase class   
 		void compute_joint_limits(double &lower, double &upper, const int &i);
@@ -34,7 +33,7 @@ class PositionControl : public iCubBase
 		void threadRelease();
 		
 	protected:
-		Eigen::VectorXd qHat;                                                               // Estimated joint configuration
+		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
 		
 };                                                                                                  // Semicolon needed after class declaration
 
@@ -44,8 +43,8 @@ class PositionControl : public iCubBase
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::compute_joint_limits(double &lower, double &upper, const int &i)
 {
-	lower = this->pLim[i][0] - this->qHat[i];
-	upper = this->pLim[i][1] - this->qHat[i];
+	lower = this->pLim[i][0] - this->qRef[i];
+	upper = this->pLim[i][1] - this->qRef[i];
 }
 
 
@@ -54,7 +53,7 @@ void PositionControl::compute_joint_limits(double &lower, double &upper, const i
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool PositionControl::threadInit()
 {
-//	this->qHat = this->q;
+	this->qRef = this->q;                                                                       // Use current joint configuration as reference point
 	this->startTime = yarp::os::Time::now();
 	return true;
 	// jump immediately to run();
@@ -65,7 +64,7 @@ bool PositionControl::threadInit()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::threadRelease()
 {
-	for(int i = 0; i < this->n; i++) send_joint_command(i,this->qHat[i]);                       // Maintain current joint position
+	for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                          // Maintain current joint position
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,19 +77,18 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 	Eigen::Isometry3d pose;                                                                     // Desired pose
 	Eigen::Matrix<double,6,1> vel, acc;
 	
-
 		if(this->leftControl)
 		{
 			this->leftTrajectory.get_state(pose,vel,acc,time);
 			
-			dx.head(6) = this->dt*vel;
+			dx.head(6) = this->dt*vel + 1e-02*pose_error(pose,this->leftPose);
 		}
 		
 		if(this->leftControl)
 		{
 			this->rightTrajectory.get_state(pose,vel,acc,time);
 			
-			dx.tail(6) = this->dt*vel;
+			dx.tail(6) = this->dt*vel + 1e-02*pose_error(pose,this->rightPose);
 		}
 	
 	return dx;
@@ -105,7 +103,9 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 	
 	for(int i = 0; i < this->n; i++)
 	{
-		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->qHat[i];
+		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->q[i];                  
+		
+//		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->qHat[i];
 	}
 	
 	return dq;
