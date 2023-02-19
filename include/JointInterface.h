@@ -44,7 +44,7 @@ class JointInterface
         
         protected:
         
-		enum ControlMode {position, force} controlMode;
+//		enum ControlMode {position, force} controlMode;
 		
 		int n;                                                                              // Number of joints being controlled
 		
@@ -77,7 +77,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
                                n(jointList.size())
 {
 	// NEED THIS AS AN ARGUMENT FOR THE CONSTRUCTOR
-	this->controlMode = position;
+//	this->controlMode = position;
 
 	// Resize std::vector objects
 	this->pos.resize(this->n);                                                                  // Resize position vector
