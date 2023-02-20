@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 					           Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
 					           short_time);
 					           
-				yarp::os::Time::delay(1.5*short_time);		
+				yarp::os::Time::delay(1.5*short_time);
 				// Box is 295mm (0.295m) wide
 				Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65));      // Pose of box relative to robot
 				
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 		else if(command == "up")
 		{
 			output.addString("Su");
-			
+
 			robot.translate(Eigen::Vector3d(0.0, 0.0, 0.075),
 			                Eigen::Vector3d(0.0, 0.0, 0.075),
 			                short_time);
