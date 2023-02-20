@@ -168,35 +168,36 @@ void iCub2::run()
 		startPoint.head(12) = (this->J*this->Mdecomp.inverse()*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - dx); // These are the Lagrange multipliers
 		startPoint.tail(this->n) = q0;
 		
-		this->qRef += (solve(H,f,this->B,z,startPoint)).tail(this->n);                      // We can ignore the Lagrange multipliers
+		Eigen::VectorXd dq = (solve(H,f,this->B,z,startPoint)).tail(this->n);               // We can ignore the Lagrange multipliers
 		
 		// Re-solve the problem subject to grasp contraints Jc*qdot = 0
 		if(this->isGrasping)
-		{
-/*			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
+		{	
+			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
 			
 			// Set up the new start point for the solver
 			startPoint.resize(6+this->n);
-			startPoint.head(6) = (Jc*this->Mdecomp.inverse()*Jc.transpose())*Jc*vel;    // Lagrange multipliers
-			startPoint.tail(12) = vel;                                                  // Previous solution
+			startPoint.head(6)  = (Jc*this->Mdecomp.inverse()*Jc.transpose())*Jc*dq;    // Lagrange multipliers
+			startPoint.tail(12) = dq;                                                   // Previous solution
 			
 			// H = [ 0   Jc ]
 			//     [ Jc' M  ]
 			H.resize(6+this->n,6+this->n);
 			H.block(0,0,6,6).setZero();
-			H.block(0,6,6,this->n) = Jc;
-			H.block(6,0,this->n,6) = Jc.transpose();
+			H.block(0,6,6,this->n)       = Jc;
+			H.block(6,0,this->n,6)       = Jc.transpose();
 			H.block(6,6,this->n,this->n) = M;
 			
 			// f = [   0  ]
 			//     [ -vel ]
 			f.resize(6+this->n);
 			f.head(6).setZero();
-			f.tail(this->n) = -vel;
+			f.tail(this->n) = -this->M*dq;
 			
-			vel = (solve(H,f,this->B,z,startPoint)).tail(this->n);
-*/
+			dq = (solve(H,f,this->B.block(0,6,10+2*this->n,6+this->n),z,startPoint)).tail(this->n); // Reduced constraint since we have -6 Lagrange multipliers
 		}
+		
+		this->qRef += dq;                                                                   // Update the reference position
 	}
 
 	for(int i = 0; i < this->n; i++) send_joint_command(i,qRef[i]);
