@@ -77,6 +77,14 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 	Eigen::Isometry3d pose;                                                                     // Desired pose
 	Eigen::Matrix<double,6,1> vel, acc;
 	
+	if(this->isGrasping)
+	{
+		this->payloadTrajectory.get_state(pose,vel,acc,time);
+		
+		dx = this->G.transpose()*( this->dt*vel + 1e-03*pose_error(pose,this->payload.pose()) );
+	}
+	else
+	{
 		if(this->leftControl)
 		{
 			this->leftTrajectory.get_state(pose,vel,acc,time);
@@ -90,6 +98,7 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 			
 			dx.tail(6) = this->dt*vel + 1e-02*pose_error(pose,this->rightPose);
 		}
+	}
 	
 	return dx;
 }
