@@ -32,7 +32,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		         const Eigen::Isometry3d        &_torsoPose);
 		
 		// Basic control functions
-//		bool is_grasping() const { return this->isGrasping; }
+		bool is_grasping() const { return this->isGrasping; }
 		
 		bool move_to_pose(const Eigen::Isometry3d &leftPose,
 		                  const Eigen::Isometry3d &rightPose,
@@ -48,15 +48,15 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
 				       const std::vector<double> &times);
 		
-//		bool move_object(const Eigen::Isometry3d &pose,
-//		                 const double &time);
+		bool move_object(const Eigen::Isometry3d &pose,
+		                 const double &time);
 		                 
-//		bool move_object(const std::vector<Eigen::Isometry3d> &poses,
-//		                 const std::vector<double> &times);
+		bool move_object(const std::vector<Eigen::Isometry3d> &poses,
+		                 const std::vector<double> &times);
 				       
-//		bool grasp_object(const Payload &_payload);
+		bool grasp_object(const Payload &_payload);
 		
-//		bool release_object();
+		bool release_object();
 				       
 		bool print_hand_pose(const std::string &whichHand);                                 // As it says on the label
 		
@@ -95,7 +95,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		// Cartesian control
 		bool leftControl, rightControl;                                                     // Switch for activating left and right control
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Individual trajectories for left, right hand
-//		CartesianTrajectory payloadTrajectory;
+		CartesianTrajectory payloadTrajectory;
 		Eigen::Matrix<double,6,6> K;                                                        // Feedback on pose error
 		Eigen::Matrix<double,6,6> D;                                                        // Feedback on velocity error
 		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
@@ -114,7 +114,6 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		// Internal functions
 		
 		bool update_state(const Eigen::VectorXd &_pos, const Eigen::VectorXd &_vel);
-		
 		
 		bool update_state();                                                                // Get new joint state, update kinematics
 		
@@ -288,7 +287,6 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 	return true;
 }
 
-/*
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                              Move the box to a given pose                                      //          
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -353,12 +351,12 @@ bool iCubBase::grasp_object(const Payload &_payload)
 	}
 	else
 	{
-		this->isGrasping = true;
-		this->payload = _payload;
+		this->isGrasping = true;                                                            // Set grasp constraint
+		this->payload = _payload;                                                           // Transfer payload information
 		
-		update_state();
+		update_state();                                                                     // This will update the payload pose
 		
-		return move_object( this->payload.pose(), 5.0 );
+		return move_object( this->payload.pose(), 5.0 );                                    // Run control on payload pose
 	}
 }
   
@@ -377,12 +375,12 @@ bool iCubBase::release_object()
 	}
 	else
 	{
-		std::cout << "[INFO] [ICUB BASE] relase_object(): "
+		std::cout << "[INFO] [ICUB BASE] release_object(): "
 		          << "You are not currently grasping!" << std::endl;
 		
 		return false;
 	}
-}*/
+}
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                          Move the joints to a desired configuration                           //
@@ -652,7 +650,7 @@ bool iCubBase::update_state()
 				     
 				this->G.block(3,6,3,3) = S;
 				this->C.block(0,9,3,3) =-S;
-/*				
+/*
 				std::cout << "\nHere is the grasp matrix G:" << std::endl;
 				std::cout << G << std::endl;
 				
@@ -661,7 +659,7 @@ bool iCubBase::update_state()
 				
 				std::cout << "\nHere is G*C.transpose():" << std::endl;
 				std::cout << G*C.transpose() << std::endl;
-*/	
+*/				
 			}
 			
 			return true;
