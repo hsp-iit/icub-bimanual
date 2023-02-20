@@ -87,16 +87,20 @@ int main(int argc, char *argv[])
 		}		
 		else if(command == "grasp")
 		{
-			output.addString("Grazie");
-			
-			robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.15,0.65)),
-			                   Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
-			                   short_time);
-			                   
-//			yarp::os::Time::delay(short_time);		
-			// Box is 295mm (0.295m) wide
-//			Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65));              // Pose of box relative to robot
-//			robot.grasp_object( Payload( robot.left_hand_pose().inverse()*boxPose, mass, inertia ) );
+			if(not robot.is_grasping())
+			{
+				output.addString("Grazie");
+				
+				robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.15,0.65)),
+					           Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
+					           short_time);
+					           
+				yarp::os::Time::delay(1.5*short_time);		
+				// Box is 295mm (0.295m) wide
+				Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65));      // Pose of box relative to robot
+				
+				robot.grasp_object( Payload( robot.left_hand_pose().inverse()*boxPose, mass, inertia ) );
+			}
 		}			
 		else if(command == "home")
 		{
@@ -140,19 +144,22 @@ int main(int argc, char *argv[])
 		}
 		else if(command == "release")
 		{
-			output.addString("Capito");
-			
-//			robot.release_object();
-			
-			std::vector<Eigen::VectorXd> waypoints;
-			waypoints.push_back(ready);
-			waypoints.push_back(home);
-			
-			std::vector<double> times;
-			times.push_back(2.0);
-			times.push_back(4.0);
-			
-			robot.move_to_positions(waypoints,times);
+			if(robot.is_grasping())
+			{
+				output.addString("Capito");
+				
+				robot.release_object();
+				
+				std::vector<Eigen::VectorXd> waypoints;
+				waypoints.push_back(ready);
+				waypoints.push_back(home);
+				
+				std::vector<double> times;
+				times.push_back(2.0);
+				times.push_back(4.0);
+				
+				robot.move_to_positions(waypoints,times);
+			}
 
 		}			
 		else if(command == "right")
