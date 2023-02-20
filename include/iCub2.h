@@ -189,7 +189,7 @@ void iCub2::run()
 			H.block(6,6,this->n,this->n) = M;
 			
 			// f = [   0  ]
-			//     [ -vel ]
+			//     [ -dq ]
 			f.resize(6+this->n);
 			f.head(6).setZero();
 			f.tail(this->n) = -this->M*dq;
