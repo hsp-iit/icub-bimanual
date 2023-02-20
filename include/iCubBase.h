@@ -31,7 +31,18 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		         const std::vector<std::string> &portNames,
 		         const Eigen::Isometry3d        &_torsoPose);
 		
-		// Basic control functions
+		// Joint Control Functions
+
+		void halt();		                                                            // Stops the robot immediately
+		
+		bool move_to_position(const Eigen::VectorXd &position,
+		                      const double &time);
+
+		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
+				       const std::vector<double> &times);
+				       		
+		// Cartesian Control Functions
+		
 		bool is_grasping() const { return this->isGrasping; }
 		
 		bool move_to_pose(const Eigen::Isometry3d &leftPose,
@@ -41,12 +52,10 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool move_to_poses(const std::vector<Eigen::Isometry3d> &leftPoses,
 		                   const std::vector<Eigen::Isometry3d> &rightPoses,
 		                   const std::vector<double> &times);
-
-		bool move_to_position(const Eigen::VectorXd &position,
-		                      const double &time);
-
-		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,               // Move joints through multiple positions
-				       const std::vector<double> &times);
+		                   
+		bool translate(const Eigen::Vector3d &left,                                         // Translate both hands by the given amount
+		               const Eigen::Vector3d &right,
+		               const double &time);
 		
 		bool move_object(const Eigen::Isometry3d &pose,
 		                 const double &time);
@@ -55,23 +64,21 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		                 const std::vector<double> &times);
 				       
 		bool grasp_object(const Payload &_payload);
-		
+
 		bool release_object();
+		               
+		// Information
 				       
 		bool print_hand_pose(const std::string &whichHand);                                 // As it says on the label
 		
 		bool set_cartesian_gains(const double &stiffness, const double &damping);
 				       
 		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
-		
-		bool translate(const Eigen::Vector3d &left,                                         // Translate both hands by the given amount
-		               const Eigen::Vector3d &right,
-		               const double &time);
 		               
 		Eigen::Isometry3d left_hand_pose()  const { return this->leftPose;  }
+		
 		Eigen::Isometry3d right_hand_pose() const { return this->rightPose; }
 				      
-		void halt();
 	
 	protected:
 		Payload payload;                                                                    
@@ -535,10 +542,17 @@ bool iCubBase::translate(const Eigen::Vector3d &left,
                          const Eigen::Vector3d &right,
                          const double &time)
 {
-	Eigen::Isometry3d leftTarget  = this->leftPose  * Eigen::Translation3d(left);
-	Eigen::Isometry3d rightTarget = this->rightPose * Eigen::Translation3d(right);
-	
-	return move_to_pose(leftTarget, rightTarget, time);
+	if(this->isGrasping)
+	{
+		return move_object( this->payload.pose() * Eigen::Translation3d(left) , time );
+	}
+	else
+	{
+		Eigen::Isometry3d leftTarget  = this->leftPose  * Eigen::Translation3d(left);
+		Eigen::Isometry3d rightTarget = this->rightPose * Eigen::Translation3d(right);
+		
+		return move_to_pose(leftTarget, rightTarget, time);
+	}
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
