@@ -81,7 +81,7 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 	{
 		this->payloadTrajectory.get_state(pose,vel,acc,time);
 		
-		dx = this->G.transpose()*( this->dt*vel + 1e-03*pose_error(pose,this->payload.pose()) );
+		dx = this->G.transpose()*( this->dt*vel + 1e-02*pose_error(pose,this->payload.pose()) );		
 	}
 	else
 	{
