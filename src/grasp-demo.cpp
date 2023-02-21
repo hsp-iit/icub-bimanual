@@ -57,11 +57,14 @@ int main(int argc, char *argv[])
 		
 		if(command == "aft")
 		{
+			
 			output.addString("Indietro");
 			
 			robot.translate(Eigen::Vector3d(-0.075, 0.0, 0.0),
 			                Eigen::Vector3d(-0.075, 0.0, 0.0),
 			                short_time);
+			
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "close")
 		{
@@ -76,6 +79,8 @@ int main(int argc, char *argv[])
 			robot.translate(Eigen::Vector3d(0.0, 0.0, -0.075),
 			                Eigen::Vector3d(0.0, 0.0, -0.075),
 			                short_time);
+			               
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "fake grasp")
 		{
@@ -86,6 +91,8 @@ int main(int argc, char *argv[])
 				robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.15,0.65)),
 					           Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
 					           short_time);
+				
+				yarp::os::Time::delay(short_time);
 			}
 			else	output.addString("Non posso!");
 		}
@@ -96,6 +103,8 @@ int main(int argc, char *argv[])
 			robot.translate(Eigen::Vector3d(0.075, 0.0, 0.0),
 			                Eigen::Vector3d(0.075, 0.0, 0.0),
 			                short_time);
+			                
+			yarp::os::Time::delay(short_time);
 		}		
 		else if(command == "grasp")
 		{
@@ -107,7 +116,7 @@ int main(int argc, char *argv[])
 					           Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
 					           short_time);
 					           
-				yarp::os::Time::delay(1.5*short_time);
+				yarp::os::Time::delay(1.1*short_time);
 				// Box is 295mm (0.295m) wide
 				Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65));      // Pose of box relative to robot
 				
@@ -119,6 +128,8 @@ int main(int argc, char *argv[])
 			output.addString("Casa");
 			
 			robot.move_to_position(home, short_time);
+			
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "in")
 		{
@@ -130,6 +141,8 @@ int main(int argc, char *argv[])
 				robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
 					        Eigen::Vector3d(0.0, 0.075, 0.0),
 					        short_time);
+				
+				yarp::os::Time::delay(short_time);     
 //			}
 //			else	output.addString("Non posso!");
 		}
@@ -140,6 +153,8 @@ int main(int argc, char *argv[])
 			robot.translate(Eigen::Vector3d(0.0, 0.075, 0.0),
 			                Eigen::Vector3d(0.0, 0.075, 0.0),
 			                short_time);
+			
+			yarp::os::Time::delay(short_time);     
 		}
 		else if(command == "left hand pose")
 		{
@@ -155,6 +170,8 @@ int main(int argc, char *argv[])
 				robot.translate(Eigen::Vector3d(0.0, 0.075, 0.0),
 					        Eigen::Vector3d(0.0,-0.075, 0.0),
 					        short_time);
+			
+				yarp::os::Time::delay(short_time);
 //			}
 //			else	output.addString("Non posso!");
 		}
@@ -162,6 +179,8 @@ int main(int argc, char *argv[])
 		{
 			output.addString("Pronto");
 			robot.move_to_position(ready, short_time);
+			
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "release")
 		{
@@ -180,6 +199,8 @@ int main(int argc, char *argv[])
 				times.push_back(4.0);
 				
 				robot.move_to_positions(waypoints,times);
+				
+				yarp::os::Time::delay(times.back());
 			}
 
 		}			
@@ -190,6 +211,8 @@ int main(int argc, char *argv[])
 			robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
 			                Eigen::Vector3d(0.0,-0.075, 0.0),
 			                short_time);
+			                
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "right hand pose")
 		{
@@ -200,6 +223,8 @@ int main(int argc, char *argv[])
 		{
 			output.addString("Piacere");
 			robot.move_to_position(shake, short_time);
+			
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "stop")
 		{
@@ -213,6 +238,8 @@ int main(int argc, char *argv[])
 			robot.translate(Eigen::Vector3d(0.0, 0.0, 0.075),
 			                Eigen::Vector3d(0.0, 0.0, 0.075),
 			                short_time);
+			                
+			yarp::os::Time::delay(short_time);
 		}
 		else if(command == "wave")
 		{
@@ -233,6 +260,8 @@ int main(int argc, char *argv[])
 			times.push_back(8.0);
 			
 			robot.move_to_positions(wave,times);
+			
+			yarp::os::Time::delay(times.back());
 		}
 		else
 		{
