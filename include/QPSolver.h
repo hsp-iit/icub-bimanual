@@ -177,12 +177,7 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 				
 				if(d[j] <= 0)
 				{
-					if(i == 0)
-					{
-						std::cerr << "[ERROR] [QPSOLVER] solve(): "
-						          << "Start point x0 is outside the constraints!" << std::endl;
-						return x0;
-					}
+					if(i == 0) throw "[ERROR] [QPSOLVER] solve(): Start point x0 is outside the constraints!";
 			
 					d[j] = 1e-03;                                               // Set a small, non-zero value
 					u *= 100;
