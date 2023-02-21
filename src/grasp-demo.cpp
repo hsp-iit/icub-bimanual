@@ -15,8 +15,8 @@ Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0
                                                                0.0,   0.0, 1e-06).finished();
                                                                
 
-//std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
-std::vector<std::string> portList = {"/icub/torso", "/icub/left_arm", "/icub/right_arm"};
+std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
+//std::vector<std::string> portList = {"/icub/torso", "/icub/left_arm", "/icub/right_arm"};
 
 std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
