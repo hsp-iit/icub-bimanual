@@ -126,11 +126,18 @@ void iCub2::run()
 		
 		this->z.tail(10) = -this->b;
 		
-		qRef = solve(Eigen::MatrixXd::Identity(this->n,this->n),                            // H
-		            -qd,                                                                    // f
-		             this->B.block(0,12,10+2*this->n,this->n),                              // Remove component for Lagrange multipliers in Cartesian mode
-		             this->z,                             
-		             q0);
+		try // to solve the QP problem
+		{
+			qRef = solve(Eigen::MatrixXd::Identity(this->n,this->n),                    // H
+				    -qd,                                                            // f
+				     this->B.block(0,12,10+2*this->n,this->n),                      // Remove component for Lagrange multipliers in Cartesian mode
+				     this->z,                             
+				     q0);
+		}
+		catch(const char* error_message)
+		{
+			std::cerr << error_message << std::endl;
+		}
 	}
 	else
 	{
@@ -168,7 +175,17 @@ void iCub2::run()
 		startPoint.head(12) = (this->J*this->Mdecomp.inverse()*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - dx); // These are the Lagrange multipliers
 		startPoint.tail(this->n) = q0;
 		
-		Eigen::VectorXd dq = (solve(H,f,this->B,z,startPoint)).tail(this->n);               // We can ignore the Lagrange multipliers
+		Eigen::VectorXd dq(this->n);
+		
+		try
+		{
+			dq = (solve(H,f,this->B,z,startPoint)).tail(this->n);                       // We can ignore the Lagrange multipliers
+		}
+		catch(const char* error_message)
+		{
+			std::cerr << error_message << std::endl;                                    // Inform user
+			dq.setZero();                                                               // Don't move
+		}
 		
 		// Re-solve the problem subject to grasp contraints Jc*qdot = 0
 		if(this->isGrasping)
@@ -188,13 +205,26 @@ void iCub2::run()
 			H.block(6,0,this->n,6)       = Jc.transpose();
 			H.block(6,6,this->n,this->n) = M;
 			
-			// f = [   0  ]
-			//     [ -dq ]
+			// f = [   0   ]
+			//     [ -M*dq ]
 			f.resize(6+this->n);
 			f.head(6).setZero();
 			f.tail(this->n) = -this->M*dq;
 			
-			dq = (solve(H,f,this->B.block(0,6,10+2*this->n,6+this->n),z,startPoint)).tail(this->n); // Reduced constraint since we have -6 Lagrange multipliers
+			try // to solve the constrained motion
+			{
+				dq = (solve(H,
+				            f,
+				            this->B.block(0,6,10+2*this->n,6+this->n),              // Reduce the constraint since we now have -6 Lagrange multipliers
+				            z,
+				            startPoint)
+				     ).tail(this->n);                                               // We can throw away the Lagrange multipliers from the result
+			}
+			catch(const char* error_message)
+			{
+				std::cerr << error_message << std::endl;                            // Inform user
+				dq.setZero();                                                       // Don't move
+			}
 		}
 		
 		this->qRef += dq;                                                                   // Update the reference position
