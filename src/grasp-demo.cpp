@@ -6,8 +6,8 @@
 #include <iCub2Configurations.h>
 #include <yarp/os/RpcServer.h>
 
-double long_time  = 6;
-double short_time = 3;
+double long_time  = 4.0;
+double short_time = 2.0;
 
 double mass = 0.1;
 Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0,
@@ -15,7 +15,8 @@ Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0
                                                                0.0,   0.0, 1e-06).finished();
                                                                
 
-std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
+//std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
+std::vector<std::string> portList = {"/icub/torso", "/icub/left_arm", "/icub/right_arm"};
 
 std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
@@ -76,6 +77,18 @@ int main(int argc, char *argv[])
 			                Eigen::Vector3d(0.0, 0.0, -0.075),
 			                short_time);
 		}
+		else if(command == "fake grasp")
+		{
+			if(not robot.is_grasping())
+			{
+				output.addString("Grazie");
+				
+				robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(0.30, 0.15,0.65)),
+					           Eigen::Isometry3d(Eigen::Translation3d(0.30,-0.15,0.65)),
+					           short_time);
+			}
+			else	output.addString("Non posso!");
+		}
 		else if(command == "fore")
 		{
 			output.addString("Avanti");
@@ -83,7 +96,6 @@ int main(int argc, char *argv[])
 			robot.translate(Eigen::Vector3d(0.075, 0.0, 0.0),
 			                Eigen::Vector3d(0.075, 0.0, 0.0),
 			                short_time);
-
 		}		
 		else if(command == "grasp")
 		{
@@ -110,11 +122,16 @@ int main(int argc, char *argv[])
 		}
 		else if(command == "in")
 		{
-			output.addString("Capito");
 			
-			robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
-			                Eigen::Vector3d(0.0, 0.075, 0.0),
-			                short_time);
+//			if(not robot.is_grasping() )
+//			{
+				output.addString("Capito");
+			
+				robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
+					        Eigen::Vector3d(0.0, 0.075, 0.0),
+					        short_time);
+//			}
+//			else	output.addString("Non posso!");
 		}
 		else if(command == "left")
 		{
@@ -131,11 +148,15 @@ int main(int argc, char *argv[])
 		}
 		else if(command == "out")
 		{
-			output.addString("Capito");
-			
-			robot.translate(Eigen::Vector3d(0.0, 0.075, 0.0),
-			                Eigen::Vector3d(0.0,-0.075, 0.0),
-			                short_time);
+//			if(not robot.is_grasping())
+//			{
+				output.addString("Capito");
+				
+				robot.translate(Eigen::Vector3d(0.0, 0.075, 0.0),
+					        Eigen::Vector3d(0.0,-0.075, 0.0),
+					        short_time);
+//			}
+//			else	output.addString("Non posso!");
 		}
 		else if(command == "ready")
 		{
