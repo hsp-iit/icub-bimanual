@@ -4,6 +4,10 @@
  //                                                                                                //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifndef ERGOCUB_H_
+#define ERGOCUB_H_
+
+#include <PositionControl.h>
 
 class ergoCub : public PositionControl
 {
@@ -47,6 +51,7 @@ ergoCub::run()
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since activation of control loop
 	
+	
 	if(this->controlSpace == joint)
 	{
 		Eigen::VectorXd qd(this->n);
@@ -56,38 +61,66 @@ ergoCub::run()
 		{
 			qd(i) = this->jointTrajectory[i].evaluatePoint(elapsedTime);
 			
-			double lower = this->pLim[i][0];
-			double upper = this->pLim[i][1];
-			
-			
-/*
-		Eigen::VectorXd qd(this->n);
-		Eigen::VectorXd q0(this->n);
-		
-		for(int i = 0; i < this->n; i++)
-		{
-			qd(i) = this->jointTrajectory[i].evaluatePoint(elapsedTime);                // Desired state for the given time
-			
-			double lower = this->pLim[i][0];
-			double upper = this->pLim[i][1];
-
-			this->z(i)         = -upper;
-			this->z(i+this->n) =  lower;
-			
-			q0(i) = 0.5*(lower + upper);
+			if(qd(i) < this->pLim[i][0]) qd(i) = this->pLim[i][0] + 0.001;              // Just above the lower limit
+			if(qd(i) > this->pLim[i][0]) qd(i) = this->pLim[i][1] - 0.001;              // Just below the upper limit
 		}
 		
-		this->z.tail(10) = -this->b;
-		
-		qRef = solve(Eigen::MatrixXd::Identity(this->n,this->n),                            // H
-		            -qd,                                                                    // f
-		             this->B.block(0,12,10+2*this->n,this->n),                              // Remove component for Lagrange multipliers in Cartesian mode
-		             this->z,                             
-		             q0);
-*/	
+		this->qRef = qd;                                                                    // Reference position for joint motors
 	}
 	else
 	{
-	
+		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
+		
+		// Calculate instantaneous joint limits
+		Eigen::VectorXd lower(this->n), upper(this->n);
+		for(int i = 0; i < this->n; i++)
+		{
+			compute_joint_limits(lower(i),upper(i),i);
+		}
+		
+		Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);                       // Get the desired Cartesian motion
+		
+		try // to solve the joint motion
+		{
+			dq = solve( 0.01*(this->setPoint - this->q),                                // Redundant task,
+		                    this->M,                                                        // Weight the joint motion by the inertia,
+		                    dx,                                                             // Constraint vector
+		                    this->J,                                                        // Constraint matrix
+		                    lower,
+		                    upper,
+		                    0.5*(lower + upper) );                                          // Start point
+		}
+		catch(const char* error_message)
+		{
+			std::cout << error_message << std::endl;
+			dq.setZero();
+		}
+		
+		if(this->isGrasping)
+		{
+			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint matrix
+			
+			try
+			{
+				dq = solve( dq,
+			  		    this->M,
+			                    Eigen::VectorXd::Zero(6),
+			                    Jc,
+			                    lower,
+			                    upper,
+			                    0.5*(lower + upper) );
+			}
+			catch(const char* error_message)
+			{
+				std::cout << error_message << std::endl;
+				dq.setZero();
+			}
+		}
+		
+		this->qRef += dq;
 	}
+
+	for(int i = 0; i < this->n; i++) send_joint_command(i,qRef[i]);
 }
+
+#endif
