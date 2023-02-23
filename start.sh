@@ -59,7 +59,7 @@ tmux split-window -v -t $TMUX_NAME
 
 # Start bash for fun
 tmux send-keys -t $TMUX_NAME "docker exec -it $DOCKER_CONTAINER_NAME bash" Enter
-tmux send-keys -t $TMUX_NAME "sleep 12" Enter  # TODO TEST
+tmux send-keys -t $TMUX_NAME "sleep 12" Enter
 tmux send-keys -t $TMUX_NAME "yarp rpc /command" Enter
 
 # Attach
