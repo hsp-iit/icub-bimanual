@@ -1,0 +1,2 @@
+/usr/share/gazebo/worlds/grasp-demo.sdf
+/usr/share/gazebo/worlds/ergocub_grasp_demo.sdf
