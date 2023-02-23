@@ -45,7 +45,7 @@ ergoCub::ergoCub(const std::string &pathToURDF,
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                     MAIN CONTROL LOOP                                          //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-ergoCub::run()
+void ergoCub::run()
 {
 	update_state();                                                                             // Update kinematics & dynamics for new control loop
 	
@@ -69,7 +69,7 @@ ergoCub::run()
 	}
 	else
 	{
-		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
+/*		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
 		
 		// Calculate instantaneous joint limits
 		Eigen::VectorXd lower(this->n), upper(this->n);
@@ -96,6 +96,7 @@ ergoCub::run()
 			dq.setZero();
 		}
 		
+		// Resolve the last subject to grasp constraints
 		if(this->isGrasping)
 		{
 			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint matrix
@@ -117,7 +118,7 @@ ergoCub::run()
 			}
 		}
 		
-		this->qRef += dq;
+		this->qRef += dq;*/
 	}
 
 	for(int i = 0; i < this->n; i++) send_joint_command(i,qRef[i]);

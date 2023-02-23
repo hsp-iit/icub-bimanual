@@ -81,6 +81,8 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 				      
 	
 	protected:
+		std::string name = "blah"; // NEED TO CHANGE THIS
+		
 		Payload payload;                                                                    
 	
 		bool isGrasping = false;
@@ -192,34 +194,46 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 
 	if(not loader.loadReducedModelFromFile(pathToURDF, jointNames, "urdf"))
 	{
-		std::cerr << "[ERROR] [ICUB] Constructor: "
+		std::cerr << "[ERROR] [ICUB BASE] Constructor: "
 		          << "Could not load model from the given path "
 		          << pathToURDF << "." << std::endl;
 	}
 	else
 	{
+		// NOTE TO SELF: NEED TO ADD AN OPTION HERE FOR EACH ROBOT
+		
+		
 		// Get the model and add some additional frames for the hands
 		iDynTree::Model temp = loader.model();
+
+		if(this->name == "iCub2")
+		{
+			temp.addAdditionalFrameToLink("l_hand", "left",
+						      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
+						                          iDynTree::Position(0.06,0,0)));
+						                          
+			temp.addAdditionalFrameToLink("r_hand", "right",
+						      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,M_PI),
+						                          iDynTree::Position(-0.06,0,0)));
+		}
+		else if(this->name == "iCub3")
+		{
+			temp.addAdditionalFrameToLink("l_hand", "left",
+						      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
+									  iDynTree::Position(0,0,-0.0)));
+			temp.addAdditionalFrameToLink("r_hand", "right",
+						      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
+						      			  iDynTree::Position(0,0,-0.06)));
+		}
+		else if(this->name == "ergoCub")
+		{
+			// Code here
+		}
 		
-		temp.addAdditionalFrameToLink("l_hand", "left",
-		                              iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
-		                                                  iDynTree::Position(0.06,0,0)));
-		                                                  
-		temp.addAdditionalFrameToLink("r_hand", "right",
-		                              iDynTree::Transform(iDynTree::Rotation::RPY(0,0,M_PI),
-		                                                  iDynTree::Position(-0.06,0,0)));
-		
-		// NOTE: These worked for iCub3. Need to add an option to change these based on
-		// the robot model.
-//		temp.addAdditionalFrameToLink("l_hand", "left",
-//					      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
-//								  iDynTree::Position(0,0,-0.06	)));
-//		temp.addAdditionalFrameToLink("r_hand", "right",
-//					      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
-//					      			  iDynTree::Position(0,0,-0.06)));	    
+		// Now load the model in to the KinDynComputations class	    
 		if(not this->computer.loadRobotModel(temp))
 		{
-			std::cerr << "[ERROR] [ICUB] Constructor: "
+			std::cerr << "[ERROR] [ICUB BASE] Constructor: "
 				  << "Could not generate iDynTree::KinDynComputations class from given model: "
 				  << loader.model().toString() << std::endl;
 		}
@@ -232,14 +246,14 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 			this->q.resize(this->n);                                                    // Vector of measured joint positions
 			this->qdot.resize(this->n);                                                 // Vector of measured joint velocities
 			
-			std::cout << "[INFO] [ICUB] Successfully created iDynTree model from "
+			std::cout << "[INFO] [ICUB BASE] Successfully created iDynTree model from "
 			          << pathToURDF << "." << std::endl;
 
 			update_state();                                                             // Get the current joint state
 			
 			if(not activate_control())
 			{
-				std::cerr << "[ERROR] [ICUB] Constructor: "
+				std::cerr << "[ERROR] [ICUB BASE] Constructor: "
                                           << "Could not activate joint control." << std::endl;
                         }
 		}
@@ -302,7 +316,7 @@ bool iCubBase::move_object(const Eigen::Isometry3d &pose,
 {
 	if(time < 0)
 	{
-		std::cerr << "[ERROR] [ICUB] move_object(): "
+		std::cerr << "[ERROR] [ICUB BASE] move_object(): "
 		          << "Time of " << time << " cannot be negative!" << std::endl;
 		          
 		return false;
@@ -397,7 +411,7 @@ bool iCubBase::move_to_position(const Eigen::VectorXd &position,
 {
 	if(position.size() != this->n)
 	{
-		std::cerr << "[ERROR] [ICUB] move_to_position(): "
+		std::cerr << "[ERROR] [ICUB BASE] move_to_position(): "
 			  << "Position vector had " << position.size() << " elements, "
 			  << "but this model has " << this->n << " joints." << std::endl;
 			  
@@ -419,7 +433,7 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 {
 	if(positions.size() != times.size())
 	{
-		std::cout << "[ERROR] [ICUB] move_to_positions(): "
+		std::cout << "[ERROR] [ICUB BASE] move_to_positions(): "
 		          << "Position array had " << positions.size() << " waypoints, "
 		          << "but the time array had " << times.size() << " elements!" << std::endl;
 
@@ -457,7 +471,7 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 			
 			if(not this->jointTrajectory[i].setData(t,waypoint))
 			{
-				std::cerr << "[ERROR] [ICUB] move_to_positions(): "
+				std::cerr << "[ERROR] [ICUB BASE] move_to_positions(): "
 				          << "There was a problem setting new joint trajectory data." << std::endl;
 			
 				return false;
@@ -483,7 +497,7 @@ bool iCubBase::print_hand_pose(const std::string &which)
 	}
 	else
 	{
-		std::cout << "[ERROR] [iCUB] print_hand_pose(): " 
+		std::cout << "[ERROR] [ICUB BASE] print_hand_pose(): " 
 		          << "Expected 'left' or 'right' as the argument, "
 		          << "but the input was " << which << "." << std::endl;
 		
@@ -498,7 +512,7 @@ bool iCubBase::set_cartesian_gains(const double &stiffness, const double &dampin
 {
 	if(stiffness <= 0 or damping <= 0)
 	{
-		std::cerr << "[ERROR] [iCUB] set_cartesian_gains(): "
+		std::cerr << "[ERROR] [ICUB BASE] set_cartesian_gains(): "
 		          << "Gains cannot be negative! "
 		          << "You input " << stiffness << " for the stiffness gain, "
 		          << "and " << damping << " for the damping gain." << std::endl;
@@ -521,7 +535,7 @@ bool iCubBase::set_joint_gains(const double &proportional, const double &derivat
 {
 	if(proportional <= 0 or derivative <= 0)
 	{
-		std::cerr << "[ERROR] [ICUB] set_joint_gains(): "
+		std::cerr << "[ERROR] [ICUB BASE] set_joint_gains(): "
                           << "Gains cannot be negative! "
                           << "You input " << proportional << " for the proportional gain, "
                           << "and " << derivative << " for the derivative gain." << std::endl;
@@ -680,7 +694,7 @@ bool iCubBase::update_state()
 		}
 		else
 		{
-			std::cerr << "[ERROR] [ICUB] update_state(): "
+			std::cerr << "[ERROR] [ICUB BASE] update_state(): "
 				  << "Could not set state for the iDynTree::iKinDynComputations object." << std::endl;
 				  
 			return false;
@@ -688,7 +702,7 @@ bool iCubBase::update_state()
 	}
 	else
 	{
-		std::cerr << "[ERROR] [ICUB] update_state(): "
+		std::cerr << "[ERROR] [ICUB BASE] update_state(): "
 			  << "Could not update state from the JointInterface class." << std::endl;
 			  
 		return false;
