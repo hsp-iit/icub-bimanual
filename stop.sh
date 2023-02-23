@@ -1,4 +1,7 @@
 #!/bin/bash
 
-docker rm -f ergocub_manipulation_container
-tmux kill-session -t manipulation-tmux
+TMUX_NAME=manipulation-tmux
+DOCKER_CONTAINER_NAME=ergocub_manipulation_container
+
+docker rm -f $DOCKER_CONTAINER_NAME
+tmux kill-session -t $TMUX_NAME
