@@ -6,7 +6,9 @@
 #include <iCub2Configurations.h>
 #include <yarp/os/RpcServer.h>
 #include <iostream>
-#include <vector>
+#include <fstream>
+
+using namespace std;
 
 double long_time  = 4.0;
 double short_time = 2.0;
@@ -65,6 +67,16 @@ int main(int argc, char *argv[])
         output.clear();                                                                     // Clear any previous information
         port.read(input,true);                                                              // Get the input from the /command port
         command = input.get(0).asString();                                                        // Convert to a string
+
+        std::ofstream outfile;
+        outfile.open("rpc_commands.txt", std::ios_base::app); // append instead of overwrite
+        outfile << command  << std::endl;
+
+        if(command[0] == '[')
+        {
+            command.erase(0,1);
+            command.erase(command.size() - 1, 1);
+        }
 
         if(command == "aft")
         {
@@ -136,12 +148,13 @@ int main(int argc, char *argv[])
         }
         else if(command == "grasp")
         {
-            auto hand_frames = request.get(1).asList();
-            for(int i : hand_frames)
-                std::cout << i << " ";
+            auto hand_frames = input.get(1).asList();
+            for(int i = 0; i < hand_frames->size(); i++) {
+                std::cout << hand_frames->get(i).asFloat64() << " ";
+            }
             std::cout << std::endl;
         }
-        else if(command == "[home]")
+        else if(command == "home")
         {
             output.addString("Casa");
 
@@ -259,7 +272,7 @@ int main(int argc, char *argv[])
 
             yarp::os::Time::delay(short_time);
         }
-        else if(command == "[wave]")
+        else if(command == "wave")
         {
             output.addString("Ciao");
 
