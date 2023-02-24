@@ -220,7 +220,12 @@ iCubBase::iCubBase(const std::string              &pathToURDF,
 		}
 		else if(this->name == "ergocub")
 		{
-			std::cerr << "This hasn't been programmed yet!" << std::endl;
+			temp.addAdditionalFrameToLink("l_hand_palm", "left",
+			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
+			                                                  iDynTree::Position(-0.00346, 0.00266, -0.0592)));
+                	temp.addAdditionalFrameToLink("r_hand_palm", "right",
+                				      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
+                				                          iDynTree::Position(-0.00387, -0.00280, -0.0597)));
 		}
 		else
 		{
@@ -621,23 +626,6 @@ bool iCubBase::update_state()
 		                                iDynTree::VectorDynSize(temp_velocity),             // Joint velocities
 		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity
 		{
-			// We need to reference the correct frame name based on the robot model
-/*			std::string leftHand, rightHand;
-			if(this->name == "icub2")
-			{
-				leftHand  = "l_hand_dh_frame";
-				rightHand = "r_hand_dh_frame";
-			}
-			else if(this->name == "icub3")
-			{
-				std::cerr << "[ERROR] [ICUB BASE] update_state(): "
-				          << "No hand frames specified for iCub3???" << std::endl;
-			}
-			else if(this->name == "ergocub")
-			{
-				leftHand  = "l_hand_palm";
-				rightHand = "r_hand_palm";
-			}*/
 		
 			// Get the Jacobian for the hands
 			Eigen::MatrixXd temp(6,6+this->n);                                          // Temporary storage
