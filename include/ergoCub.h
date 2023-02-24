@@ -35,7 +35,8 @@ ergoCub::ergoCub(const std::string &pathToURDF,
 		 PositionControl(pathToURDF,
 				 jointNames,
 				 portNames,
-				 Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())))
+				 Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())),
+				 "ergocub")
 {
 	// Worker bees can leave.
 	// Even drones can fly away.

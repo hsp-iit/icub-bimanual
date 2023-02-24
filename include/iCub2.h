@@ -39,7 +39,8 @@ iCub2::iCub2(const std::string &pathToURDF,
              PositionControl(pathToURDF,
                              jointNames,
                              portNames,
-                             Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())))
+                             Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())),
+                             "icub2")
 {
 	// Lower the gains since we're running in velocity mode
 	set_joint_gains(5.0, 0.01);                                                                 // We don't actually care about the derivative

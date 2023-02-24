@@ -12,14 +12,12 @@
 class PositionControl : public iCubBase
 {
 	public:
-		PositionControl(const std::string &pathToURDF,
+		PositionControl(const std::string              &pathToURDF,
 			        const std::vector<std::string> &jointNames,
 			        const std::vector<std::string> &portNames,
-			        const Eigen::Isometry3d &_torsoPose) :
-	        iCubBase(pathToURDF,
-	                 jointNames,
-	                 portNames,
-	                 _torsoPose) {}
+			        const Eigen::Isometry3d        &_torsoPose,
+			        const std::string              &robotName) :
+	        iCubBase(pathToURDF, jointNames, portNames, _torsoPose, robotName) {}
 		
 		// Inherited from the iCubBase class   
 		void compute_joint_limits(double &lower, double &upper, const int &i);
