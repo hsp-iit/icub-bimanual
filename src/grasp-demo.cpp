@@ -68,10 +68,6 @@ int main(int argc, char *argv[])
         port.read(input,true);                                                              // Get the input from the /command port
         command = input.get(0).asString();                                                        // Convert to a string
 
-        std::ofstream outfile;
-        outfile.open("rpc_commands.txt", std::ios_base::app); // append instead of overwrite
-        outfile << command  << std::endl;
-
         if(command[0] == '[')
         {
             command.erase(0,1);
@@ -148,11 +144,15 @@ int main(int argc, char *argv[])
         }
         else if(command == "grasp")
         {
+//            std::ofstream outfile;
+//            outfile.open("poses.txt", std::ios_base::app); // append instead of overwrite
             auto hand_frames = input.get(1).asList();
-            for(int i = 0; i < hand_frames->size(); i++) {
-                std::cout << hand_frames->get(i).asFloat64() << " ";
-            }
-            std::cout << std::endl;
+//            for(int i = 0; i < hand_frames->size(); i++) {
+//                outfile << hand_frames->get(i).asFloat64() << " ";
+//            }
+//            outfile << std::endl;
+
+            output.addString("Grasping box");
         }
         else if(command == "home")
         {
