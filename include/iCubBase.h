@@ -29,7 +29,8 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		iCubBase(const std::string              &pathToURDF,
 		         const std::vector<std::string> &jointNames,
 		         const std::vector<std::string> &portNames,
-		         const Eigen::Isometry3d        &_torsoPose);
+		         const Eigen::Isometry3d        &_torsoPose,
+		         const std::string              &robotName);
 		
 		// Joint Control Functions
 
@@ -81,7 +82,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 				      
 	
 	protected:
-		std::string name = "blah"; // NEED TO CHANGE THIS
+		std::string name;                                                                   // As an internal reference
 		
 		Payload payload;                                                                    
 	
@@ -121,9 +122,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		iDynTree::Transform          torsoPose;                                             // Needed for inverse dynamics; not used yet
 			                       	
 		// Internal functions
-		
-		bool update_state(const Eigen::VectorXd &_pos, const Eigen::VectorXd &_vel);
-		
+				
 		bool update_state();                                                                // Get new joint state, update kinematics
 		
 		Eigen::Matrix<double,6,1> pose_error(const Eigen::Isometry3d &desired,
@@ -149,13 +148,15 @@ class iCubBase : public yarp::os::PeriodicThread,                               
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                         CONSTRUCTOR                                            //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-iCubBase::iCubBase(const std::string &pathToURDF,
+iCubBase::iCubBase(const std::string              &pathToURDF,
                    const std::vector<std::string> &jointNames,
                    const std::vector<std::string> &portNames,
-                   const Eigen::Isometry3d &_torsoPose) :
+                   const Eigen::Isometry3d        &_torsoPose,
+                   const std::string              &robotName) :
                    yarp::os::PeriodicThread(0.01),                                                  // Create thread to run at 100Hz
                    JointInterface(jointNames, portNames),                                           // Communicates with joint motors
-                   torsoPose(Eigen_to_iDynTree(_torsoPose))
+                   torsoPose(Eigen_to_iDynTree(_torsoPose)),
+                   name(robotName)
 {
 	// Set the Cartesian control gains	
 	this->gainTemplate << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
@@ -195,39 +196,37 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 	if(not loader.loadReducedModelFromFile(pathToURDF, jointNames, "urdf"))
 	{
 		std::cerr << "[ERROR] [ICUB BASE] Constructor: "
-		          << "Could not load model from the given path "
-		          << pathToURDF << "." << std::endl;
+		          << "Could not load model from the given path " << pathToURDF << "." << std::endl;
 	}
 	else
 	{
-		// NOTE TO SELF: NEED TO ADD AN OPTION HERE FOR EACH ROBOT
-		
-		
 		// Get the model and add some additional frames for the hands
 		iDynTree::Model temp = loader.model();
-
-		if(this->name == "iCub2")
+		
+		// Add custom hand frames based on the model of the robot
+		if(this->name == "icub2")
 		{
 			temp.addAdditionalFrameToLink("l_hand", "left",
-						      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
-						                          iDynTree::Position(0.06,0,0)));
-						                          
+			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,0.0),
+			                                                  iDynTree::Position(0.05765, -0.00556, 0.01369)));
+		
 			temp.addAdditionalFrameToLink("r_hand", "right",
-						      iDynTree::Transform(iDynTree::Rotation::RPY(0,0,M_PI),
-						                          iDynTree::Position(-0.06,0,0)));
+						      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,M_PI),
+						                          iDynTree::Position(-0.05765, -0.00556, 0.01369)));
 		}
-		else if(this->name == "iCub3")
+		else if(this->name == "icub3")
 		{
-			temp.addAdditionalFrameToLink("l_hand", "left",
-						      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
-									  iDynTree::Position(0,0,-0.0)));
-			temp.addAdditionalFrameToLink("r_hand", "right",
-						      iDynTree::Transform(iDynTree::Rotation::RPY(0,M_PI/2,0.0),
-						      			  iDynTree::Position(0,0,-0.06)));
+			std::cerr << "This hasn't been programmed yet!" << std::endl;
 		}
-		else if(this->name == "ergoCub")
+		else if(this->name == "ergocub")
 		{
-			// Code here
+			std::cerr << "This hasn't been programmed yet!" << std::endl;
+		}
+		else
+		{
+			std::cerr << "[ERROR] [ICUB BASE] Constructor: "
+			          << "Expected icub2, icub3 or ergocub for the robot name, "
+			          << "but your input was " << robotName << "." << std::endl;
 		}
 		
 		// Now load the model in to the KinDynComputations class	    
@@ -290,16 +289,14 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 	std::vector<double> t; t.push_back(0.0);                                                    // Start immediately
 	t.insert(t.end(),times.begin(),times.end());                                                // Add on the rest of the times
 	
-	// Set up the left hand trajectory
-	Eigen::Isometry3d T = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));
-	std::vector<Eigen::Isometry3d> waypoint; waypoint.push_back(T);
+	// Set up the left hand trajectory	
+	std::vector<Eigen::Isometry3d> waypoint; waypoint.push_back(this->leftPose);
 	waypoint.insert(waypoint.end(),left.begin(),left.end());                                    // Add additional waypoints to the end
 	this->leftTrajectory = CartesianTrajectory(waypoint, t);                                    // Create the left-hand trajectory
 	
 	// Set up the right hand trajectory
-	T = iDynTree_to_Eigen(this->computer.getWorldTransform("right"));
 	waypoint.clear();
-	waypoint.push_back(T);                                                                      // First waypoint is the current pose
+	waypoint.push_back(this->rightPose);
 	waypoint.insert(waypoint.end(),right.begin(),right.end());                                  // Add additional poses to the end
 	this->rightTrajectory = CartesianTrajectory(waypoint,t);                                    // Create new trajectory for the right hand
 	
@@ -624,10 +621,28 @@ bool iCubBase::update_state()
 		                                iDynTree::VectorDynSize(temp_velocity),             // Joint velocities
 		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity
 		{
+			// We need to reference the correct frame name based on the robot model
+/*			std::string leftHand, rightHand;
+			if(this->name == "icub2")
+			{
+				leftHand  = "l_hand_dh_frame";
+				rightHand = "r_hand_dh_frame";
+			}
+			else if(this->name == "icub3")
+			{
+				std::cerr << "[ERROR] [ICUB BASE] update_state(): "
+				          << "No hand frames specified for iCub3???" << std::endl;
+			}
+			else if(this->name == "ergocub")
+			{
+				leftHand  = "l_hand_palm";
+				rightHand = "r_hand_palm";
+			}*/
+		
 			// Get the Jacobian for the hands
 			Eigen::MatrixXd temp(6,6+this->n);                                          // Temporary storage
 			
-			this->computer.getFrameFreeFloatingJacobian("left",temp);                   // Compute left hand Jacobian
+			this->computer.getFrameFreeFloatingJacobian("left",temp);                 // Compute left hand Jacobian
 			this->J.block(0,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
 			
 			this->computer.getFrameFreeFloatingJacobian("right",temp);                  // Compute right hand Jacobian
