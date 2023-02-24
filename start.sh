@@ -34,13 +34,14 @@ if [ -n "$SERVER_IP" ] # Variable is non-null
 then
   tmux send-keys -t $TMUX_NAME "yarp conf $SERVER_IP 10000" Enter
 else
-  tmux send-keys -t $TMUX_NAME "yarp detect --write" Enter
+  if [ -n "$START_YARP_SERVER" ]
+  then
+    tmux send-keys -t $TMUX_NAME "yarpserver --write" Enter
+  else 
+    tmux send-keys -t $TMUX_NAME "yarp detect --write" Enter
+  fi
 fi
-# OR start Yarp Server
-if [ -n "$START_YARP_SERVER" ] # Variable is non-null
-then
-  tmux send-keys -t $TMUX_NAME "yarpserver --write" Enter
-fi
+
 tmux split-window -h -t $TMUX_NAME
 
 # Start Gazebo with iCub
@@ -60,7 +61,7 @@ tmux split-window -v -t $TMUX_NAME
 # Start bash for fun
 tmux send-keys -t $TMUX_NAME "docker exec -it $DOCKER_CONTAINER_NAME bash" Enter
 tmux send-keys -t $TMUX_NAME "sleep 12" Enter
-tmux send-keys -t $TMUX_NAME "yarp rpc /command" Enter
+tmux send-keys -t $TMUX_NAME "yarp rpc /Components/Manipulation" Enter
 
 # Attach
 tmux a -t $TMUX_NAME
