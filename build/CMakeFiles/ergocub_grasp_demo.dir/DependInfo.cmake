@@ -1,14 +1,18 @@
-
-# Consider dependencies only in project.
-set(CMAKE_DEPENDS_IN_PROJECT_ONLY OFF)
-
 # The set of languages for which implicit dependencies are needed:
 set(CMAKE_DEPENDS_LANGUAGES
+  "CXX"
   )
+# The set of files for implicit dependencies of each language:
+set(CMAKE_DEPENDS_CHECK_CXX
+  "/home/woolfrey/workspace/icub-bimanual/src/ergocub_grasp_demo.cpp" "/home/woolfrey/workspace/icub-bimanual/build/CMakeFiles/ergocub_grasp_demo.dir/src/ergocub_grasp_demo.cpp.o"
+  )
+set(CMAKE_CXX_COMPILER_ID "GNU")
 
-# The set of dependency files which are needed:
-set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/woolfrey/workspace/icub-bimanual/src/ergocub_grasp_demo.cpp" "CMakeFiles/ergocub_grasp_demo.dir/src/ergocub_grasp_demo.cpp.o" "gcc" "CMakeFiles/ergocub_grasp_demo.dir/src/ergocub_grasp_demo.cpp.o.d"
+# The include file search paths:
+set(CMAKE_CXX_TARGET_INCLUDE_PATH
+  "../include"
+  "/usr/include/eigen3"
+  "/home/woolfrey/workspace/robotology-superbuild/build/install/include"
   )
 
 # Targets to which this target links.

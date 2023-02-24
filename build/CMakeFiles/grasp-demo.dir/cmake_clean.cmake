@@ -1,6 +1,5 @@
 file(REMOVE_RECURSE
   "CMakeFiles/grasp-demo.dir/src/grasp-demo.cpp.o"
-  "CMakeFiles/grasp-demo.dir/src/grasp-demo.cpp.o.d"
   "bin/grasp-demo"
   "bin/grasp-demo.pdb"
 )

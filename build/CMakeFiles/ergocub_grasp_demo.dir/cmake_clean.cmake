@@ -1,6 +1,5 @@
 file(REMOVE_RECURSE
   "CMakeFiles/ergocub_grasp_demo.dir/src/ergocub_grasp_demo.cpp.o"
-  "CMakeFiles/ergocub_grasp_demo.dir/src/ergocub_grasp_demo.cpp.o.d"
   "bin/ergocub_grasp_demo"
   "bin/ergocub_grasp_demo.pdb"
 )
