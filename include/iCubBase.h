@@ -258,8 +258,8 @@ iCubBase::iCubBase(const std::string              &pathToURDF,
 			if(not activate_control())
 			{
 				std::cerr << "[ERROR] [ICUB BASE] Constructor: "
-                                          << "Could not activate joint control." << std::endl;
-                        }
+					  << "Could not activate joint control." << std::endl;
+			}
 		}
 	}
 }
