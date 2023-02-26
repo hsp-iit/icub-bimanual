@@ -52,18 +52,16 @@ void ergoCub::run()
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since activation of control loop
 	
-	
 	if(this->controlSpace == joint)
 	{
 		Eigen::VectorXd qd(this->n);
-		Eigen::VectorXd q0(this->n);
 		
 		for(int i = 0; i < this->n; i++)
 		{
 			qd(i) = this->jointTrajectory[i].evaluatePoint(elapsedTime);
 			
 			if(qd(i) < this->pLim[i][0]) qd(i) = this->pLim[i][0] + 0.001;              // Just above the lower limit
-			if(qd(i) > this->pLim[i][0]) qd(i) = this->pLim[i][1] - 0.001;              // Just below the upper limit
+			if(qd(i) > this->pLim[i][1]) qd(i) = this->pLim[i][1] - 0.001;              // Just below the upper limit
 		}
 		
 		this->qRef = qd;                                                                    // Reference position for joint motors
@@ -122,7 +120,7 @@ void ergoCub::run()
 		this->qRef += dq;*/
 	}
 
-	for(int i = 0; i < this->n; i++) send_joint_command(i,qRef[i]);
+	for(int i = 0; i < this->n; i++) send_joint_command(i,this->qRef[i]);
 }
 
 #endif
