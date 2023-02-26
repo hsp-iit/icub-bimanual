@@ -5,12 +5,12 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <ergoCub.h>
-// #include <ergoCubConfigurations.h>
+#include <ergoCubConfigurations.h>
 #include <yarp/os/RpcServer.h>
 
 
 // These are used for setting the length of trajetories
-double long_time = 4.0;
+double long_time =  5.0;
 double short_time = 2.0;
 
 // These are used for creating a Payload object
@@ -72,6 +72,44 @@ int main(int argc, char *argv[])
 				output.addString("Arrivederci");
 				active = false;
 			}
+			else if(command == "home")
+			{
+				output.addString("Casa");
+				robot.move_to_position(home,short_time);
+			}
+			else if(command == "ready")
+			{
+				output.addString("Pronto");
+				robot.move_to_position(ready,short_time);
+			}
+			else if(command == "shake")
+			{
+				output.addString("Piacere");
+				robot.move_to_position(shake,short_time);
+			}
+			else if(command == "wave")
+			{
+				output.addString("Ciao");
+				
+//				robot.move_to_position(wave1,short_time);
+				
+				std::vector<Eigen::VectorXd> wave;
+				wave.push_back(wave1);
+				wave.push_back(wave2);
+				wave.push_back(wave1);
+				wave.push_back(wave2);
+				wave.push_back(home);
+				
+				std::vector<double> times;
+				times.push_back(2.0);
+				times.push_back(3.0);
+				times.push_back(4.0);
+				times.push_back(5.0);
+				times.push_back(8.0);
+				
+				robot.move_to_positions(wave,times);
+			}
+			else output.addString("Cosa");
 			
 			port.reply(output);
 		}
