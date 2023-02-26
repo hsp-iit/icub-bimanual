@@ -64,7 +64,8 @@ class JointInterface
 		yarp::dev::IControlLimits*   limits;                                                // Joint limits?
 		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 		yarp::dev::IEncoders*        encoders;                                              // Joint position values (in degrees)
-		yarp::dev::IPositionDirect*  pController;
+//		yarp::dev::IPositionDirect*  pController;
+		yarp::dev::IPositionControl* pController;
 		yarp::dev::PolyDriver        driver;                                                // Device driver
 	
 };                                                                                                  // Semicolon needed after class declaration
@@ -202,14 +203,21 @@ bool JointInterface::activate_control()
 	{
 		for(int i = 0; i < this->n; i++)
 		{
-			if(not this->mode->setControlMode(i,VOCAB_CM_POSITION_DIRECT))
+			if(not this->mode->setControlMode(i,VOCAB_CM_POSITION))
+//			if(not this->mode->setControlMode(i,VOCAB_CM_POSITION_DIRECT))
 			{
 				std::cerr << "[ERROR] [JOINT INTERFACE] activate_control(): "
-				          << "Unable to set the control mode for joint " << i+1 << "." << std::endl;
+					  << "Unable to set the control mode for joint " << i+1 << "." << std::endl;
 				 
 				return false;
 			}
-			
+			else
+			{
+				this->pController->setRefSpeed(i,std::numeric_limits<double>::max());
+				this->pController->setRefAcceleration(i, std::numeric_limits<double>::max());
+			}
+
+						
 			send_joint_command(i,this->pos[i]);                                         // Maintain current joint position
 		}
 
@@ -320,7 +328,8 @@ bool JointInterface::send_joint_command(const int &i, const double &command)
 	}
 	else
 	{
-		if(not this->pController->setPosition(i,command*180/M_PI))
+//		if(not this->pController->setPosition(i,command*180/M_PI))
+		if(not this->pController->positionMove(i,command*180/M_PI))
 		{
 			std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
 			          << "Could not send a command for joint " << i+1 << "." << std::endl;
