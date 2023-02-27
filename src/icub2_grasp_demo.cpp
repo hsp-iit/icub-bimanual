@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 							   
 					yarp::os::Time::delay(1.1*short_time);
 					// Box is 295mm (0.295m) wide
-					Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65));      // Pose of box relative to robot
+					Eigen::Isometry3d boxPose(Eigen::Translation3d(0.3,0.0,0.65)); // Pose of box relative to robot
 					
 					robot.grasp_object( Payload( robot.left_hand_pose().inverse()*boxPose, mass, inertia ) );
 				}
@@ -275,10 +275,10 @@ int main(int argc, char *argv[])
 				output.addString("Cosa");
 			}
 			
-			port.reply(output);                                                                 // Send the output
+			port.reply(output);                                                         // Send the output
 		}
 		
-		robot.close();                                                                              // Close the device drivers
+		robot.close();                                                                      // Close the device drivers
 
 	return 0;
 	}
