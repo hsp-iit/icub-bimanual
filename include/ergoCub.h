@@ -18,7 +18,10 @@ class ergoCub : public PositionControl
 	
 	private:
 	
-		Eigen::VectorXd setPoint;
+		Eigen::VectorXd setPoint =
+		(Eigen::VectorXd(17) << 0.0,  0.0,  0.00,
+                                       -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0,
+                                       -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0).finished();
 		
 		void run();                                                                         // This is the main control loop
 		
@@ -35,7 +38,7 @@ ergoCub::ergoCub(const std::string &pathToURDF,
 		 PositionControl(pathToURDF,
 				 jointNames,
 				 portNames,
-				 Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())),
+				 Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.96)),
 				 "ergocub")
 {
 	// Worker bees can leave.
@@ -68,26 +71,33 @@ void ergoCub::run()
 	}
 	else
 	{
-/*		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
+		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
+		Eigen::VectorXd redundantTask = 0.1*(this->setPoint - this->q);
+		Eigen::VectorXd q0(this->n);
 		
 		// Calculate instantaneous joint limits
-		Eigen::VectorXd lower(this->n), upper(this->n);
+		Eigen::VectorXd lowerBound(this->n), upperBound(this->n);
 		for(int i = 0; i < this->n; i++)
 		{
-			compute_joint_limits(lower(i),upper(i),i);
+			double lower, upper;
+			compute_joint_limits(lower,upper,i);
+			
+			lowerBound(i) = lower;
+			upperBound(i) = upper;
+			q0(i) = 0.5*(lower + upper);
 		}
 		
 		Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);                       // Get the desired Cartesian motion
 		
 		try // to solve the joint motion
 		{
-			dq = solve( 0.01*(this->setPoint - this->q),                                // Redundant task,
-		                    this->M,                                                        // Weight the joint motion by the inertia,
-		                    dx,                                                             // Constraint vector
-		                    this->J,                                                        // Constraint matrix
-		                    lower,
-		                    upper,
-		                    0.5*(lower + upper) );                                          // Start point
+			dq = least_squares(redundantTask,                                           // Redundant task,
+		                           this->M,                                                 // Weight the joint motion by the inertia,
+		                           dx,                                                      // Constraint vector
+		                           this->J,                                                 // Constraint matrix
+		                           lowerBound,
+		                           upperBound,
+		                           q0);                                                     // Start point
 		}
 		catch(const char* error_message)
 		{
@@ -96,7 +106,7 @@ void ergoCub::run()
 		}
 		
 		// Resolve the last subject to grasp constraints
-		if(this->isGrasping)
+/*		if(this->isGrasping)
 		{
 			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint matrix
 			
@@ -116,8 +126,8 @@ void ergoCub::run()
 				dq.setZero();
 			}
 		}
-		
-		this->qRef += dq;*/
+*/
+		this->qRef += dq;
 	}
 
 	for(int i = 0; i < this->n; i++) send_joint_command(i,this->qRef[i]);
