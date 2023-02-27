@@ -21,7 +21,7 @@ Eigen::VectorXd shake      = (Eigen::VectorXd(17) <<  0.0,  0.0,  0.00,
                                                      -0.5,  0.4,  0.50,  0.8, -0.8,  0.0,  0.0).finished();
                           
 Eigen::VectorXd ready      = (Eigen::VectorXd(17) <<  0.0,  0.0,  0.00,
-                                                     -0.2,  0.4,  0.00,  0.8,  0.0,  0.0,  0.0,
+                                                     -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0,
                                                      -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0).finished();
                           
 Eigen::VectorXd wave1      = (Eigen::VectorXd(17) <<  0.5, -0.2,  0.00,
