@@ -66,26 +66,153 @@ int main(int argc, char *argv[])
 			output.clear();                                                             // Clear any previous information
 			port.read(input,true);                                                      // Get the input from the /command port
 			command = input.toString();                                                 // Convert to a string	
-		
+
+			if(command == "aft")
+			{
+				
+				output.addString("Indietro");
+				
+				robot.translate(Eigen::Vector3d(-0.075, 0.0, 0.0),
+					        Eigen::Vector3d(-0.075, 0.0, 0.0),
+					        short_time);
+				
+				yarp::os::Time::delay(short_time);
+			}		
 			if(command == "close")
 			{
 				output.addString("Arrivederci");
 				active = false;
+			}
+			else if(command == "down")
+			{
+				output.addString("Giu'");
+				
+				robot.translate(Eigen::Vector3d(0.0, 0.0, -0.075),
+					        Eigen::Vector3d(0.0, 0.0, -0.075),
+					        short_time);
+					       
+				yarp::os::Time::delay(short_time);
+			}
+			else if(command == "fore")
+			{
+				output.addString("Avanti");
+				
+				robot.translate(Eigen::Vector3d(0.075, 0.0, 0.0),
+					        Eigen::Vector3d(0.075, 0.0, 0.0),
+					        short_time);
+					        
+				yarp::os::Time::delay(short_time);
+			}		
+			else if(command == "grasp")
+			{
+				if(not robot.is_grasping())
+				{
+					output.addString("Grazie");
+					
+					double graspHeight = 1.20;
+					double graspDist = 0.4;
+					double graspWidth = 0.15;
+					
+					robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(graspDist, graspWidth,graspHeight)),
+							   Eigen::Isometry3d(Eigen::Translation3d(graspDist,-graspWidth,graspHeight)),
+							   short_time);
+							   
+					yarp::os::Time::delay(1.1*short_time);
+					// Box is 295mm (0.295m) wide
+					Eigen::Isometry3d boxPose(Eigen::Translation3d(graspDist,0.0,graspHeight)); // Pose of box relative to robot
+					
+					robot.grasp_object( Payload( robot.left_hand_pose().inverse()*boxPose, mass, inertia ) );
+				}
 			}
 			else if(command == "home")
 			{
 				output.addString("Casa");
 				robot.move_to_position(home,short_time);
 			}
+			else if(command == "in")
+			{
+				output.addString("Capito");
+			
+				robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
+						Eigen::Vector3d(0.0, 0.075, 0.0),
+						short_time);
+				
+				yarp::os::Time::delay(short_time);
+			}
+			else if(command == "left")
+			{
+				output.addString("Sinistra");
+				
+				robot.translate(Eigen::Vector3d(0.0, 0.075, 0.0),
+					        Eigen::Vector3d(0.0, 0.075, 0.0),
+					        short_time);
+				
+				yarp::os::Time::delay(short_time);     
+			}
+			else if(command == "out")
+			{
+				output.addString("Capito");
+				
+				robot.translate(Eigen::Vector3d(0.0, 0.075,0.0),
+				                Eigen::Vector3d(0.0,-0.075,0.0),
+				                short_time);
+			}	
 			else if(command == "ready")
 			{
 				output.addString("Pronto");
 				robot.move_to_position(ready,short_time);
 			}
+			else if(command == "release")
+			{
+				if(robot.is_grasping())
+				{
+					output.addString("Capito");
+					
+					robot.release_object();
+					
+					std::vector<Eigen::VectorXd> waypoints;
+					waypoints.push_back(ready);
+					waypoints.push_back(home);
+					
+					std::vector<double> times;
+					times.push_back(2.0);
+					times.push_back(4.0);
+					
+					robot.move_to_positions(waypoints,times);
+					
+					yarp::os::Time::delay(times.back());
+				}
+
+			}			
+			else if(command == "right")
+			{
+				output.addString("Destra");
+				
+				robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
+					        Eigen::Vector3d(0.0,-0.075, 0.0),
+					        short_time);
+					        
+				yarp::os::Time::delay(short_time);
+			}
 			else if(command == "shake")
 			{
 				output.addString("Piacere");
 				robot.move_to_position(shake,short_time);
+			}
+			else if(command == "stop")
+			{
+				output.addString("Fermare");
+				robot.halt();
+			}
+			else if(command == "up")
+			{
+				output.addString("Su");
+
+				robot.translate(Eigen::Vector3d(0.0, 0.0, 0.075),
+					        Eigen::Vector3d(0.0, 0.0, 0.075),
+					        short_time);
+					        
+				yarp::os::Time::delay(short_time);
 			}
 			else if(command == "wave")
 			{
