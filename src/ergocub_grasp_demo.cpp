@@ -67,7 +67,31 @@ int main(int argc, char *argv[])
 			port.read(input,true);                                                      // Get the input from the /command port
 			command = input.toString();                                                 // Convert to a string	
 
-			if(command == "aft")
+			if(command == "accordian")
+			{
+				output.addString("Suonare");
+				
+				std::vector<Eigen::Isometry3d> leftPoses; 
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.08,1.2)));
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.22,1.2)));
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.08,1.2)));
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.15,1.2)));
+				
+				std::vector<Eigen::Isometry3d> rightPoses;
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.08,1.2)));
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.22,1.2)));
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.08,1.2)));
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.15,1.2)));
+				
+				std::vector<double> times;
+				times.push_back(2.0);
+				times.push_back(5.0);
+				times.push_back(8.0);
+				times.push_back(10.0);
+				
+				robot.move_to_poses(leftPoses,rightPoses,times);
+			}
+			else if(command == "aft")
 			{
 				
 				output.addString("Indietro");
@@ -78,7 +102,7 @@ int main(int argc, char *argv[])
 				
 				yarp::os::Time::delay(short_time);
 			}		
-			if(command == "close")
+			else if(command == "close")
 			{
 				output.addString("Arrivederci");
 				active = false;
@@ -194,11 +218,87 @@ int main(int argc, char *argv[])
 					        
 				yarp::os::Time::delay(short_time);
 			}
+			else if(command == "round")
+			{
+				if(not robot.is_grasping())
+				{
+					output.addString("Non posso");
+				}
+				else
+				{
+					output.addString("Girare");
+					
+					std::vector<Eigen::Isometry3d> poses;
+					poses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.10,1.20)));
+					poses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.00,1.35)));
+					poses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.10,1.20)));
+					poses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.00,1.10)));					
+					poses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.00,1.20)));					
+					
+					std::vector<double> times;
+					times.push_back(2.0);
+					times.push_back(4.0);
+					times.push_back(6.0);
+					times.push_back(8.0);
+					times.push_back(10.0);
+					
+					robot.move_object(poses,times);
+				}
+			}
+			else if(command == "scissor")
+			{
+				output.addString("Tagliare");
+				
+				std::vector<Eigen::Isometry3d> leftPoses; 
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.15,1.3)));
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.15,1.1)));
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.15,1.3)));
+				leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4, 0.15,1.2)));
+				
+				std::vector<Eigen::Isometry3d> rightPoses;
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.15,1.1)));
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.15,1.3)));
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.15,1.1)));
+				rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(0.4,-0.15,1.2)));
+				
+				std::vector<double> times;
+				times.push_back(2.0);
+				times.push_back(5.0);
+				times.push_back(8.0);
+				times.push_back(10.0);
+				
+				robot.move_to_poses(leftPoses,rightPoses,times);
+			}				
 			else if(command == "shake")
 			{
 				output.addString("Piacere");
 				robot.move_to_position(shake,short_time);
 			}
+			else if(command == "spin")
+			{
+				if(not robot.is_grasping())
+				{
+					output.addString("Non posso");
+				}
+				else
+				{
+					output.addString("Girare");
+					
+					Eigen::Translation3d translation(0.4,0.0,1.2);
+				
+					std::vector<Eigen::Isometry3d> poses;
+					poses.push_back(Eigen::Isometry3d(translation*Eigen::AngleAxisd(0.5,Eigen::Vector3d::UnitX())));
+					poses.push_back(Eigen::Isometry3d(translation*Eigen::AngleAxisd(-0.5,Eigen::Vector3d::UnitX())));
+					poses.push_back(Eigen::Isometry3d(translation*Eigen::AngleAxisd(0.0,Eigen::Vector3d::UnitX())));
+					
+					std::vector<double> times;
+					times.push_back(2.0);
+					times.push_back(4.0);
+					times.push_back(6.0);
+					
+					robot.move_object(poses,times);
+				}
+			}				
 			else if(command == "stop")
 			{
 				output.addString("Fermare");
@@ -217,8 +317,6 @@ int main(int argc, char *argv[])
 			else if(command == "wave")
 			{
 				output.addString("Ciao");
-				
-//				robot.move_to_position(wave1,short_time);
 				
 				std::vector<Eigen::VectorXd> wave;
 				wave.push_back(wave1);
