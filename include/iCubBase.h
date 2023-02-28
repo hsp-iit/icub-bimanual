@@ -663,7 +663,7 @@ bool iCubBase::update_state()
 				Eigen::Matrix<double,3,3> S;                                        // Skew symmetric matrix
 				
 				// Left hand component
-				Eigen::Vector3d r = this->payload.pose().translation() - this->leftPose.translation();
+				Eigen::Vector3d r = this->leftPose.translation() - this->payload.pose().translation();
 				
 				S <<    0 , -r(2),  r(1),
 				      r(2),    0 , -r(0),
@@ -673,7 +673,7 @@ bool iCubBase::update_state()
 				this->C.block(0,3,3,3) =  S;
 				
 				// Right hand component
-				r = this->payload.pose().translation() - this->rightPose.translation();
+				r = this->rightPose.translation() - this->payload.pose().translation();
 				
 				S <<    0 , -r(2),  r(1),
 				      r(2),    0 , -r(0),
@@ -681,16 +681,16 @@ bool iCubBase::update_state()
 				     
 				this->G.block(3,6,3,3) = S;
 				this->C.block(0,9,3,3) =-S;
-/*
-				std::cout << "\nHere is the grasp matrix G:" << std::endl;
+
+				/*std::cout << "\nHere is the grasp matrix G:" << std::endl;
 				std::cout << G << std::endl;
 				
 				std::cout << "\nHere is the constraint matrix C:" << std::endl;
 				std::cout << C << std::endl;
 				
 				std::cout << "\nHere is G*C.transpose():" << std::endl;
-				std::cout << G*C.transpose() << std::endl;
-*/				
+				std::cout << G*C.transpose() << std::endl;*/
+				
 			}
 			
 			return true;
