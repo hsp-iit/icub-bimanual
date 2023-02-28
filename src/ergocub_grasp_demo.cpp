@@ -11,7 +11,7 @@
 
 // These are used for setting the length of trajetories
 double long_time =  5.0;
-double short_time = 2.0;
+double short_time = 20.0;
 
 // These are used for creating a Payload object
 double mass = 0.1;
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 		// Configure communication across the yarp network
 		yarp::os::Network yarp;                                                             // First connect to the network
 		yarp::os::RpcServer port;                                                           // Create a port for sending / receiving info
-		port.open("/command");                                                              // Open the port with the name '/command'
+        port.open("/Components/Manipulation");                                              // Open the port with the name '/command'
 		yarp::os::Bottle input;                                                             // Store information from the user input
 		yarp::os::Bottle output;                                                            // Store information to send to the user
 		std::string command;                                                                // Response message, command from user
@@ -63,22 +63,31 @@ int main(int argc, char *argv[])
 		
 		while(active)
 		{
-			output.clear();                                                             // Clear any previous information
-			port.read(input,true);                                                      // Get the input from the /command port
-			command = input.toString();                                                 // Convert to a string	
 
-			if(command == "aft")
-			{
-				
-				output.addString("Indietro");
-				
-				robot.translate(Eigen::Vector3d(-0.075, 0.0, 0.0),
-					        Eigen::Vector3d(-0.075, 0.0, 0.0),
-					        short_time);
-				
-				yarp::os::Time::delay(short_time);
-			}		
-			if(command == "close")
+            output.clear();                                                                     // Clear any previous information
+            port.read(input,true);                                                              // Get the input from the /command port
+            command = input.get(0).asString();                                                  // Convert to a string
+
+            if(command[0] == '[')
+            {
+                command.erase(0,1);
+                command.erase(command.size() - 1, 1);
+            }
+
+
+            if(command == "aft")
+            {
+
+                output.addString("Indietro");
+
+                robot.translate(Eigen::Vector3d(-0.075, 0.0, 0.0),
+                                Eigen::Vector3d(-0.075, 0.0, 0.0),
+                                short_time);
+
+                yarp::os::Time::delay(short_time);
+            }
+
+            if(command == "close")
 			{
 				output.addString("Arrivederci");
 				active = false;
@@ -228,11 +237,11 @@ int main(int argc, char *argv[])
 				wave.push_back(home);
 				
 				std::vector<double> times;
-				times.push_back(2.0);
-				times.push_back(3.0);
-				times.push_back(4.0);
-				times.push_back(5.0);
-				times.push_back(8.0);
+				times.push_back(10.);
+				times.push_back(20.);
+				times.push_back(25.);
+				times.push_back(30.);
+				times.push_back(35.);
 				
 				robot.move_to_positions(wave,times);
 			}

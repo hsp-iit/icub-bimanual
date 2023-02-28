@@ -46,7 +46,7 @@ tmux split-window -h -t $TMUX_NAME
 
 # Start Gazebo with iCub
 tmux send-keys -t $TMUX_NAME "docker exec -it $DOCKER_CONTAINER_NAME bash" Enter
-tmux send-keys -t $TMUX_NAME "gazebo ~/ergocub-manipulation/gazebo/worlds/grasp-demo.sdf" Enter
+tmux send-keys -t $TMUX_NAME "gazebo ~/ergocub-manipulation/gazebo/worlds/ergocub_grasp_demo.sdf" Enter
 tmux select-pane -t $TMUX_NAME:0.0
 tmux split-window -v -t $TMUX_NAME
 
@@ -54,7 +54,7 @@ tmux split-window -v -t $TMUX_NAME
 tmux send-keys -t $TMUX_NAME "docker exec -it $DOCKER_CONTAINER_NAME bash" Enter
 tmux send-keys -t $TMUX_NAME "cd /root/ergocub-manipulation/build/bin" Enter
 tmux send-keys -t $TMUX_NAME "sleep 10" Enter
-tmux send-keys -t $TMUX_NAME "./grasp-demo /robotology-superbuild/build/install/share/iCub/robots/iCubGazeboV2_7/model.urdf" Enter
+tmux send-keys -t $TMUX_NAME "./ergocub_grasp_demo /ergocubSim /robotology-superbuild/build/install/share/ergoCub/robots/ergoCubGazeboV1/model.urdf" Enter
 tmux select-pane -t $TMUX_NAME:0.2
 tmux split-window -v -t $TMUX_NAME
 
