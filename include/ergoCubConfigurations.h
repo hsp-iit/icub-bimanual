@@ -24,12 +24,12 @@ Eigen::VectorXd ready      = (Eigen::VectorXd(17) <<  0.0,  0.0,  0.00,
                                                      -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0,
                                                      -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0).finished();
                           
-Eigen::VectorXd wave1      = (Eigen::VectorXd(17) <<  0.5, -0.2,  0.00,
-                                                      0.0,  0.0,  0.00,  0.0,  0.0,  0.0,  0.0,
+Eigen::VectorXd wave1      = (Eigen::VectorXd(17) <<  0.3, -0.2,  0.00,
+                                                      0.0,  0.21,  0.00,  0.0,  0.0,  0.0,  0.0,
                                                       0.0,  0.5, -1.20,  1.4, -0.1,  0.0,  0.0).finished();
                             
-Eigen::VectorXd wave2      = (Eigen::VectorXd(17) <<  0.5, -0.2,  0.00,
-                                                      0.0,  0.0,  0.00,  0.0,  0.0,  0.0,  0.0,
+Eigen::VectorXd wave2      = (Eigen::VectorXd(17) <<  0.3, -0.2,  0.00,
+                                                      0.0,  0.21,  0.00,  0.0,  0.0,  0.0,  0.0,
                                                       0.0,  0.5, -1.20,  1.0, -0.1,  0.0,  0.0).finished();
 
 #endif

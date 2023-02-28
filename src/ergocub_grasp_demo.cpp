@@ -11,7 +11,7 @@
 
 // These are used for setting the length of trajetories
 double long_time =  5.0;
-double short_time = 20.0;
+double short_time = 2.0;
 
 // These are used for creating a Payload object
 double mass = 0.1;
@@ -237,11 +237,11 @@ int main(int argc, char *argv[])
 				wave.push_back(home);
 				
 				std::vector<double> times;
+				times.push_back(2.);
+				times.push_back(4.);
+				times.push_back(6.);
+				times.push_back(8.);
 				times.push_back(10.);
-				times.push_back(20.);
-				times.push_back(25.);
-				times.push_back(30.);
-				times.push_back(35.);
 				
 				robot.move_to_positions(wave,times);
 			}
