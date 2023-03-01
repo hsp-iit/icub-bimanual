@@ -103,8 +103,8 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		enum ControlSpace {joint, cartesian} controlSpace;
 		
 		// Joint control properties
-		double kp = 10.0;                                                                   // Feedback on joint position error
-		double kd =  5.0;                                                                   // Feedback on joint velocity error
+		double kp = 1e-3;                                                                   // Feedback on joint position error
+		double kd =  0.0;                                                                   // Feedback on joint velocity error
 		std::vector<iDynTree::CubicSpline> jointTrajectory;                                 // Generates reference trajectories for joints
 		
 		// Cartesian control
