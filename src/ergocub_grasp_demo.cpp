@@ -18,7 +18,7 @@ double graspWidth    = 0.15;
 double graspDist     = 0.45;
 double graspRest     = 0.35;
 double torsoHeight   = 0.90;
-double nominalHeight = torsoHeight + 0.30;
+double nominalHeight = torsoHeight + 0.35;
 double graspHeight   = nominalHeight;
 double torsoDist     = 0.40;
 
