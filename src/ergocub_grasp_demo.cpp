@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 		// Configure communication across the yarp network
 		yarp::os::Network yarp;                                                             // First connect to the network
 		yarp::os::RpcServer port;                                                           // Create a port for sending / receiving info
-		port.open("/command");                                                              // Open the port with the name '/command'
+		port.open("/Components/Manipulation");                                              // Open the port with the name '/command'
 		yarp::os::Bottle input;                                                             // Store information from the user input
 		yarp::os::Bottle output;                                                            // Store information to send to the user
 		std::string command;                                                                // Response message, command from user
