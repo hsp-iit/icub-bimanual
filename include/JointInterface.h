@@ -23,7 +23,9 @@ class JointInterface
 		               const std::vector<std::string> &portList);
 		
 		bool activate_control();                                                            // Activates control if construction successful
-		
+
+        yarp::conf::vocab32_t get_control_mode(const int& joint_index);
+
 		bool get_joint_state(std::vector<double> &_pos,
 		                     std::vector<double> &_vel);
 		                     
@@ -65,7 +67,7 @@ class JointInterface
 		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 		yarp::dev::IEncoders*        encoders;                                              // Joint position values (in degrees)
 		yarp::dev::IPositionControl* pController;
-//		yarp::dev::IPositionDirect*  pController;
+		yarp::dev::IPositionDirect*  pDirectController;
 		yarp::dev::PolyDriver        driver;                                                // Device driver
 	
 };                                                                                                  // Semicolon needed after class declaration
@@ -87,40 +89,45 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 	this->torque.resize(this->n);                                                               // Resize the torque vector
 	this->pLim.resize(this->n);                                                                 // Resize position limits vector
 	this->vLim.resize(this->n);                                                                 // Resize max velocity vector
-	
+
 	////////////////////////// I copied this code from elsewhere ///////////////////////////////
-	
+
 	// Open up device drivers
-	yarp::os::Property options;									
+	yarp::os::Property options;
 	options.put("device", "remotecontrolboardremapper");
 	options.addGroup("axesNames");
-	
+
 	yarp::os::Bottle & bottle = options.findGroup("axesNames").addList();
 	for(int i = 0; i < jointList.size(); i++) bottle.addString(jointList[i].c_str());           // Add the list of all the joint names
-		
+
 	yarp::os::Bottle remoteControlBoards;
 	yarp::os::Bottle & remoteControlBoardsList = remoteControlBoards.addList();
 	for(int i = 0; i < portList.size(); i++) remoteControlBoardsList.addString(portList[i]);    // Add the remote control board port names
-	
+
 	options.put("remoteControlBoards", remoteControlBoards.get(0));
 	options.put("localPortPrefix", "/local");
-	
+
 	yarp::os::Property &remoteControlBoardsOpts = options.addGroup("REMOTE_CONTROLBOARD_OPTIONS");
 			    remoteControlBoardsOpts.put("writeStrict", "on");
-			    
+
 	////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	if(not this->driver.open(options))
 	{
 		std::cerr << "[ERROR] [JOINT INTERFACE] Constructor: "
 			  << "Could not open device driver." << std::endl;
 	}
 	else
-	{	
+	{
 		if(not this->driver.view(this->pController))
 		{
 			std::cerr << "[ERROR] [JOINT INTERFACE] Constructor: "
 			          << "Unable to configure the position controller for the joint motors." << std::endl;
+		}
+		else if(not this->driver.view(this->pDirectController))
+		{
+			std::cerr << "[ERROR] [JOINT INTERFACE] Constructor: "
+			          << "Unable to configure the position direct controller for the joint motors." << std::endl;
 		}
 		else if(not this->driver.view(this->mode))
 		{
@@ -168,22 +175,34 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 					else
 					{
 						this->isValid = true;                               // Success! We made it to the end.
-						
+
 						for(int j = 0; j < this->n; j++) this->pos[i] = temp[i]*M_PI/180; // Assign initial joint values
-						
+
 						break;
 					}
 				}
 			}
-		}					
+		}
 	}
-	
+
 	if(this->isValid)
 	{
 		std::cout << "[INFO] [JOINT INTERFACE] Constructor: "
 			  << "Successfully configured the drivers." << std::endl;
-	}					  
+	}
 	else this->driver.close();
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                       Discriminate control mode                                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+yarp::conf::vocab32_t JointInterface::get_control_mode(const int& joint_index)
+{
+    if ((joint_index == 7) || (joint_index == 8) || (joint_index == 9) ||
+        (joint_index == 14) || (joint_index == 15) || (joint_index == 16))
+        return VOCAB_CM_POSITION;
+
+    return VOCAB_CM_POSITION_DIRECT;
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -207,22 +226,25 @@ bool JointInterface::activate_control()
 			{
 				std::cerr << "[ERROR] [JOINT INTERFACE] activate_control(): "
 					  << "Unable to set the control mode for joint " << i+1 << "." << std::endl;
-				 
+
 				return false;
 			}
 */
 
-			if(not this->mode->setControlMode(i,VOCAB_CM_POSITION))
+			if(not this->mode->setControlMode(i, get_control_mode(i)))
 			{
 				std::cerr << "[ERROR] [JOINT INTERFACE] activate_control(): "
 					  << "Unable to set the control mode for joint " << i+1 << "." << std::endl;
-				 
+
 				return false;
 			}
 			else
 			{
-				this->pController->setRefSpeed(i,std::numeric_limits<double>::max());
-				this->pController->setRefAcceleration(i, std::numeric_limits<double>::max()); // CHANGE THIS?
+                if (get_control_mode(i) == VOCAB_CM_POSITION)
+                {
+                    this->pController->setRefSpeed(i,std::numeric_limits<double>::max());
+                    this->pController->setRefAcceleration(i, std::numeric_limits<double>::max()); // CHANGE THIS?
+                }
 			}
 
 			send_joint_command(i,this->pos[i]);                                         // Maintain current joint position
@@ -330,20 +352,30 @@ bool JointInterface::send_joint_command(const int &i, const double &command)
 		std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
 		          << "You specified joint number " << i << " but the range for joint indices "
 		          << "is " << 0 << " to " << this->n-1 << "." << std::endl;
-		
+
 		return false;
 	}
 	else
 	{
-		if(not this->pController->positionMove(i,command*180/M_PI))
-//		if(not this->pController->setPosition(i,command*180/M_PI))
-		{
-			std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
-			          << "Could not send a command for joint " << i+1 << "." << std::endl;
-		}
-		
-		return true;
-	}
+        if (get_control_mode(i) == VOCAB_CM_POSITION)
+        {
+            if(not this->pController->positionMove(i,command*180/M_PI))
+            {
+                std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
+                          << "Could not send a command for joint " << i+1 << "." << std::endl;
+            }
+        }
+        else if (get_control_mode(i) == VOCAB_CM_POSITION_DIRECT)
+        {
+            if(not this->pDirectController->setPosition(i,command*180/M_PI))
+            {
+                std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_command(): "
+                          << "Could not send a *direct* command for joint " << i+1 << "." << std::endl;
+            }
+        }
+
+        return true;
+    }
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
