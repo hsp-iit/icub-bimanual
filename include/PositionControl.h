@@ -51,6 +51,7 @@ void PositionControl::compute_joint_limits(double &lower, double &upper, const i
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool PositionControl::threadInit()
 {
+	this->isFinished = false;                                                                   
 	this->qRef = this->q;                                                                       // Use current joint configuration as reference point
 	this->startTime = yarp::os::Time::now();
 	return true;
