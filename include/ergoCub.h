@@ -55,6 +55,8 @@ void ergoCub::run()
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since activation of control loop
 	
+	if(elapsedTime >= this->endTime) this->isFinished = true;
+	
 	if(this->controlSpace == joint)
 	{
 		Eigen::VectorXd qd(this->n);
