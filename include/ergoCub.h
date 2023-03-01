@@ -72,7 +72,7 @@ void ergoCub::run()
 	else
 	{
 		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
-		Eigen::VectorXd redundantTask = 0.05*(this->setPoint - this->q);
+		Eigen::VectorXd redundantTask = 0.01*(this->setPoint - this->q);
 		Eigen::VectorXd q0(this->n);
 		
 		// Calculate instantaneous joint limits
