@@ -135,8 +135,15 @@ int main(int argc, char *argv[])
 			}
 			else if(command == "home")
 			{
+                bool block = input.get(1).asBool();
+
 				output.addString("Casa");
-				robot.move_to_position(home,short_time);
+                robot.move_to_position(home,short_time);
+
+                if (block){
+                    yarp::os::Time::delay(short_time);
+                }
+
 			}
 			else if(command == "in")
 			{
@@ -168,11 +175,19 @@ int main(int argc, char *argv[])
 			}	
 			else if(command == "ready")
 			{
+                bool block = input.get(1).asBool();
+
 				output.addString("Pronto");
 				robot.move_to_position(ready,short_time);
+
+                if (block){
+                    yarp::os::Time::delay(short_time);
+                }
 			}
 			else if(command == "release")
 			{
+                bool block = input.get(1).asBool();
+
 				if(robot.is_grasping())
 				{
 					output.addString("Capito");
@@ -188,9 +203,13 @@ int main(int argc, char *argv[])
 					times.push_back(4.0);
 					
 					robot.move_to_positions(waypoints,times);
-					
+
 					yarp::os::Time::delay(times.back());
 				}
+
+                if (block){
+                    yarp::os::Time::delay(6.);
+                }
 
 			}			
 			else if(command == "right")
@@ -205,8 +224,14 @@ int main(int argc, char *argv[])
 			}
 			else if(command == "shake")
 			{
+                bool block = input.get(1).asBool();
+
 				output.addString("Piacere");
 				robot.move_to_position(shake,short_time);
+
+                if (block){
+                    yarp::os::Time::delay(short_time);
+                }
 			}
 			else if(command == "stop")
 			{
@@ -225,6 +250,8 @@ int main(int argc, char *argv[])
 			}
 			else if(command == "wave")
 			{
+                bool block = input.get(1).asBool();
+
 				output.addString("Ciao");
 				
 //				robot.move_to_position(wave1,short_time);
@@ -244,6 +271,10 @@ int main(int argc, char *argv[])
 				times.push_back(10.);
 				
 				robot.move_to_positions(wave,times);
+
+                if (block){
+                    yarp::os::Time::delay(10.);
+                }
 			}
 			else output.addString("Cosa");
 			
