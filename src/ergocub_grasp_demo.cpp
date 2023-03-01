@@ -17,7 +17,7 @@ double shortTime = 2.0;
 double graspWidth    = 0.15;
 double graspDist     = 0.45;
 double graspRest     = 0.35;
-double torsoHeight   = 0.96;
+double torsoHeight   = 0.90;
 double nominalHeight = torsoHeight + 0.30;
 double graspHeight   = nominalHeight;
 double torsoDist     = 0.40;
@@ -125,6 +125,14 @@ int main(int argc, char *argv[])
 						robot.move_object(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,0.0,graspHeight)),2.0);
 					}
 				}
+				else if(command == "grasp test")
+				{
+					robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(graspDist, graspWidth,graspHeight)),
+							   Eigen::Isometry3d(Eigen::Translation3d(graspDist,-graspWidth,graspHeight)),
+							   shortTime);
+					
+					yarp::os::Time::delay(shortTime);
+				}
 				else if(command == "home")
 				{
 					output.addString("Casa");
@@ -134,8 +142,8 @@ int main(int argc, char *argv[])
 				{
 					output.addString("Capito");
 				
-					robot.translate(Eigen::Vector3d(0.0,-0.075, 0.0),
-							Eigen::Vector3d(0.0, 0.075, 0.0),
+					robot.translate(Eigen::Vector3d(0.0,-0.025, 0.0),
+							Eigen::Vector3d(0.0, 0.025, 0.0),
 							shortTime);
 					
 					yarp::os::Time::delay(shortTime);
@@ -144,8 +152,8 @@ int main(int argc, char *argv[])
 				{
 					output.addString("Capito");
 					
-					robot.translate(Eigen::Vector3d(0.0, 0.075,0.0),
-						        Eigen::Vector3d(0.0,-0.075,0.0),
+					robot.translate(Eigen::Vector3d(0.0, 0.025,0.0),
+						        Eigen::Vector3d(0.0,-0.025,0.0),
 						        shortTime);
 				}	
 				else if(command == "ready")
