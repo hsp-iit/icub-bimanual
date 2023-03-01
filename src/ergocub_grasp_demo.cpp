@@ -73,7 +73,13 @@ int main(int argc, char *argv[])
 		{
 			output.clear();                                                             // Clear any previous information
 			port.read(input,true);                                                      // Get the input from the /command port
-			command = input.toString();                                                 // Convert to a string	
+			command = input.toString();                                                 // Convert to a string
+
+            if(command[0] == '[')
+            {
+                command.erase(0,1);
+                command.erase(command.size() - 1, 1);
+            }
 
 			// These actions will not execute when in grasp mode
 			if(not robot.is_grasping())
