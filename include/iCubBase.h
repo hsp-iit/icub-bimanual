@@ -46,6 +46,8 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		
 		bool is_grasping() const { return this->isGrasping; }
 		
+		bool is_finished() const { return this->isFinished; }
+		
 		bool move_to_pose(const Eigen::Isometry3d &leftPose,
 		                  const Eigen::Isometry3d &rightPose,
 		                  const double &time);
@@ -87,11 +89,14 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		Payload payload;                                                                    
 	
 		bool isGrasping = false;
+		
+		bool isFinished = false;
 	
 		double dt     = 0.01;                                                               // Default control frequency
 		double hertz  = 100;                                                                // Control frequency = 1/dt
 		double maxAcc = 10;                                                                 // Limits the acceleration
 		double startTime;                                                                   // Used for timing the control loop
+		double endTime;                                                                     // Used for checking when actions are complete
 		
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
 		
@@ -305,6 +310,8 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 	waypoint.insert(waypoint.end(),right.begin(),right.end());                                  // Add additional poses to the end
 	this->rightTrajectory = CartesianTrajectory(waypoint,t);                                    // Create new trajectory for the right hand
 	
+	this->endTime = times.back();
+	
 	start(); // Go immediately to threadInit();
 
 	return true;
@@ -354,6 +361,8 @@ bool iCubBase::move_object(const std::vector<Eigen::Isometry3d> &poses,
 	std::vector<Eigen::Isometry3d> waypoints; waypoints.push_back( this->payload.pose() );      // First waypoint is current pose
 	waypoints.insert( waypoints.end(), poses.begin(), poses.end() );                            // Add on additional waypoints to the end
 	this->payloadTrajectory = CartesianTrajectory(waypoints, t);                                // Create new trajectory to follow
+	
+	this->endTime = times.back();                                                               // Assign the end time
 	
 	start(); // go immediately to threadInit()
 	
@@ -479,6 +488,8 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 				return false;
 			}
 		}
+		
+		this->endTime = times.back();                                                       // Assign the end time
 		
 		start();                                                                            // Start the control thread
 		return true;                                                                        // Success
@@ -663,7 +674,7 @@ bool iCubBase::update_state()
 				Eigen::Matrix<double,3,3> S;                                        // Skew symmetric matrix
 				
 				// Left hand component
-				Eigen::Vector3d r = this->payload.pose().translation() - this->leftPose.translation();
+				Eigen::Vector3d r = this->leftPose.translation() - this->payload.pose().translation();
 				
 				S <<    0 , -r(2),  r(1),
 				      r(2),    0 , -r(0),
@@ -673,7 +684,7 @@ bool iCubBase::update_state()
 				this->C.block(0,3,3,3) =  S;
 				
 				// Right hand component
-				r = this->payload.pose().translation() - this->rightPose.translation();
+				r = this->rightPose.translation() - this->payload.pose().translation();
 				
 				S <<    0 , -r(2),  r(1),
 				      r(2),    0 , -r(0),
@@ -681,16 +692,6 @@ bool iCubBase::update_state()
 				     
 				this->G.block(3,6,3,3) = S;
 				this->C.block(0,9,3,3) =-S;
-/*
-				std::cout << "\nHere is the grasp matrix G:" << std::endl;
-				std::cout << G << std::endl;
-				
-				std::cout << "\nHere is the constraint matrix C:" << std::endl;
-				std::cout << C << std::endl;
-				
-				std::cout << "\nHere is G*C.transpose():" << std::endl;
-				std::cout << G*C.transpose() << std::endl;
-*/				
 			}
 			
 			return true;

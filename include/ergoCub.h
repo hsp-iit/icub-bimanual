@@ -55,6 +55,8 @@ void ergoCub::run()
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since activation of control loop
 	
+	if(elapsedTime >= this->endTime) this->isFinished = true;
+	
 	if(this->controlSpace == joint)
 	{
 		Eigen::VectorXd qd(this->n);
@@ -72,7 +74,7 @@ void ergoCub::run()
 	else
 	{
 		Eigen::VectorXd dq(this->n);                                                        // We want to solve this
-		Eigen::VectorXd redundantTask = 0.1*(this->setPoint - this->q);
+		Eigen::VectorXd redundantTask = 0.01*(this->setPoint - this->q);
 		Eigen::VectorXd q0(this->n);
 		
 		// Calculate instantaneous joint limits
@@ -88,7 +90,7 @@ void ergoCub::run()
 		}
 		
 		Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);                       // Get the desired Cartesian motion
-		
+				
 		try // to solve the joint motion
 		{
 			dq = least_squares(redundantTask,                                           // Redundant task,
