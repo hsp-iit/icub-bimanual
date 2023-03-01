@@ -238,14 +238,14 @@ bool JointInterface::activate_control()
 
 				return false;
 			}
-			// else
-			// {
-            //     if (get_control_mode(i) == VOCAB_CM_POSITION)
-            //     {
-            //         this->pController->setRefSpeed(i,std::numeric_limits<double>::max());
-            //         this->pController->setRefAcceleration(i, std::numeric_limits<double>::max()); // CHANGE THIS?
-            //     }
-			// }
+			else
+			{
+                if (get_control_mode(i) == VOCAB_CM_POSITION)
+                {
+                    this->pController->setRefSpeed(i,99.0);
+                    // this->pController->setRefAcceleration(i, std::numeric_limits<double>::max()); // CHANGE THIS?
+                }
+			}
 
 			send_joint_command(i,this->pos[i]);                                         // Maintain current joint position
 		}
