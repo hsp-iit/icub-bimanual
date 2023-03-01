@@ -106,7 +106,12 @@ int main(int argc, char *argv[])
 				{
 					output.addString("Arrivederci");
 					active = false;
-				}		
+				}
+				else if(command == "finished")
+				{
+					if(robot.is_finished()) output.addString("Si");
+					else                    output.addString("No");
+				}	
 				else if(command == "grasp")
 				{
 					if(not robot.is_grasping())
@@ -218,6 +223,11 @@ int main(int argc, char *argv[])
 					                  shortTime);
 						       
 					yarp::os::Time::delay(shortTime);
+				}
+				else if(command == "finished")
+				{
+					if(robot.is_finished()) output.addString("Si");
+					else                    output.addString("No");
 				}
 				else if(command == "fore")
 				{
