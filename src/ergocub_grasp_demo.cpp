@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 		{
 			output.clear();                                                             // Clear any previous information
 			port.read(input,true);                                                      // Get the input from the /command port
-			command = input.toString();                                                 // Convert to a string
+			command = input.get(0).asString();                                          // Convert to a string
 
             if(command[0] == '[')
             {
