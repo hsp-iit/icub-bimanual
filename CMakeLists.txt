@@ -38,7 +38,7 @@ include_directories(include)                                                    
 add_executable(icub2_grasp_demo src/icub2_grasp_demo.cpp)
 target_link_libraries(icub2_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
-add_executable(ergocub_grasp_demo src/ergocub_grasp_demo.cpp)
+add_executable(ergocub_grasp_demo src/ergocub_grasp_demo.cpp src/Probe.cpp)
 target_link_libraries(ergocub_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
 #add_executable(qp_test src/qp_test.cpp)
