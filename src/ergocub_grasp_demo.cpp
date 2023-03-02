@@ -22,6 +22,20 @@ double nominalHeight = torsoHeight + 0.35;
 double graspHeight   = nominalHeight;
 double torsoDist     = 0.40;
 
+double roll  = 0.0*M_PI/180;
+double pitch = 0.0;
+double yaw   = 0.0*M_PI/180;
+
+Eigen::Isometry3d leftHandGrasp = Eigen::Translation3d(graspDist, graspWidth, graspHeight)
+                                * Eigen::AngleAxisd(-roll,  Eigen::Vector3d::UnitX())
+                                * Eigen::AngleAxisd( pitch, Eigen::Vector3d::UnitY())
+                                * Eigen::AngleAxisd( yaw,   Eigen::Vector3d::UnitZ());
+                                 
+Eigen::Isometry3d rightHandGrasp = Eigen::Translation3d(graspDist, -graspWidth, graspHeight)
+                                 * Eigen::AngleAxisd( roll,  Eigen::Vector3d::UnitX())
+                                 * Eigen::AngleAxisd(-pitch, Eigen::Vector3d::UnitY())
+                                 * Eigen::AngleAxisd(-yaw,   Eigen::Vector3d::UnitZ());
+                                 
 // These are used for creating a Payload object but not really important
 double mass = 0.1;
 Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0,
@@ -127,9 +141,7 @@ int main(int argc, char *argv[])
 
 						output.addString("Grazie");
 
-						robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(graspDist, graspWidth,graspHeight)),
-								   Eigen::Isometry3d(Eigen::Translation3d(graspDist,-graspWidth,graspHeight)),
-								   shortTime);
+						robot.move_to_pose(leftHandGrasp, rightHandGrasp, shortTime);
 
 						yarp::os::Time::delay(shortTime);
 						// Box is 295mm (0.295m) wide
@@ -143,11 +155,9 @@ int main(int argc, char *argv[])
                         }
 					}
 				}
-				else if(command == "grasp test")
+				else if(command == "grasp_test")
 				{
-					robot.move_to_pose(Eigen::Isometry3d(Eigen::Translation3d(graspDist, graspWidth,graspHeight)),
-							   Eigen::Isometry3d(Eigen::Translation3d(graspDist,-graspWidth,graspHeight)),
-							   shortTime);
+					robot.move_to_pose(leftHandGrasp, rightHandGrasp, shortTime);
 
 					yarp::os::Time::delay(shortTime);
 				}
