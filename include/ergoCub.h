@@ -8,23 +8,26 @@
 #define ERGOCUB_H_
 
 #include <PositionControl.h>
+#include <Probe.h>
 
-class ergoCub : public PositionControl
+
+class ergoCub : public PositionControl,
+                public Probe
 {
 	public:
 		ergoCub(const std::string &pathToURDF,
 		        const std::vector<std::string> &jointNames,
 		        const std::vector<std::string> &portNames);
-	
+
 	private:
-	
+
 		Eigen::VectorXd setPoint =
 		(Eigen::VectorXd(17) << 0.0,  0.0,  0.00,
                                        -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0,
                                        -0.2,  0.4,  0.00,  0.8, -0.4,  0.0,  0.0).finished();
-		
+
 		void run();                                                                         // This is the main control loop
-		
+
 };                                                                                                  // Semicolon needed after class declaration
 
 
@@ -39,7 +42,8 @@ ergoCub::ergoCub(const std::string &pathToURDF,
 				 jointNames,
 				 portNames,
 				 Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.96)),
-				 "ergocub")
+                 "ergocub"),
+         Probe("/Components/Manipulation/DesiredJointConfiguration:o")
 {
 	// Worker bees can leave.
 	// Even drones can fly away.
@@ -133,6 +137,10 @@ void ergoCub::run()
 	}
 
 	for(int i = 0; i < this->n; i++) send_joint_command(i,this->qRef[i]);
+
+    // Stream desired joint configuration over port
+    // set_data is a method of the class Probe this class is inheriting from
+    set_data(qRef);
 }
 
 #endif
