@@ -55,9 +55,9 @@ class Payload
 		Eigen::Matrix<double,3,3> globalInertia;
 		
 		Eigen::Matrix<double,3,3> inertiaDerivative;
-		
-		Eigen::Matrix<double,3,1> twist;
-		
+
+		Eigen::Matrix<double,6,1> twist;
+
 		void check_inertia();
 	
 };                                                                                                  // Semicolon needed after class declaration
