@@ -94,7 +94,6 @@ int main(int argc, char *argv[])
                 command.erase(0,1);
                 command.erase(command.size() - 1, 1);
             }
-
 			// These actions will not execute when in grasp mode
 			if(not robot.is_grasping())
 			{
@@ -127,6 +126,36 @@ int main(int argc, char *argv[])
 					output.addString("Arrivederci");
 					active = false;
 				}
+				else if(command == "fancy")
+				{
+					output.addString("Non lo so");
+					
+					std::vector<Eigen::Isometry3d> leftPoses;
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.05,nominalHeight+0.1)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.15,nominalHeight+0.0)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.05,nominalHeight-0.1)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.15,nominalHeight+0.0)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.05,nominalHeight+0.1)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.15,nominalHeight+0.0)));
+					
+					std::vector<Eigen::Isometry3d> rightPoses;
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.05,nominalHeight-0.1)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.15,nominalHeight+0.0)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.05,nominalHeight+0.1)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.15,nominalHeight+0.0)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.05,nominalHeight-0.1)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.15,nominalHeight+0.0)));
+					
+					std::vector<double> times;
+					times.push_back(1.5*shortTime);
+					times.push_back(2.5*shortTime);
+					times.push_back(3.5*shortTime);
+					times.push_back(4.5*shortTime);
+					times.push_back(5.5*shortTime);
+					times.push_back(6.5*shortTime);
+
+					robot.move_to_poses(leftPoses,rightPoses,times);
+				}
 				else if(command == "finished")
 				{
 					if(robot.is_finished()) output.addString("Si");
@@ -134,25 +163,27 @@ int main(int argc, char *argv[])
 				}
 				else if(command == "grasp")
 				{
-
 					if(not robot.is_grasping())
 					{
-                        bool block = input.get(1).asBool();
+                        			bool block = input.get(1).asBool();
 
 						output.addString("Grazie");
 
 						robot.move_to_pose(leftHandGrasp, rightHandGrasp, shortTime);
+						
+						//do
+						//{
+							// Nothing
+						//}while(not robot.is_finished());
+						
+						yarp::os::Time::delay(1.1*shortTime);
 
-						yarp::os::Time::delay(shortTime);
-						// Box is 295mm (0.295m) wide
 						Eigen::Isometry3d boxPose(Eigen::Translation3d(graspDist,0.0,graspHeight)); // Pose of box relative to robot
 						robot.grasp_object( Payload( robot.left_hand_pose().inverse()*boxPose, mass, inertia ) );
 
 						robot.move_object(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,0.0,graspHeight)),2.0);
 
-                        if (block){
-                            yarp::os::Time::delay(shortTime);
-                        }
+						if (block)  yarp::os::Time::delay(shortTime);
 					}
 				}
 				else if(command == "grasp_test")
@@ -163,14 +194,12 @@ int main(int argc, char *argv[])
 				}
 				else if(command == "home")
 				{
-                    bool block = input.get(1).asBool();
+                    			bool block = input.get(1).asBool();
 
 					output.addString("Casa");
 					robot.move_to_position(home,shortTime);
 
-                    if (block){
-                        yarp::os::Time::delay(shortTime);
-                    }
+			    		if (block) yarp::os::Time::delay(shortTime);
 				}
 				else if(command == "in")
 				{
@@ -192,25 +221,45 @@ int main(int argc, char *argv[])
 				}
 				else if(command == "ready")
 				{
-                    bool block = input.get(1).asBool();
+                    			bool block = input.get(1).asBool();
 
 					output.addString("Pronto");
 					robot.move_to_position(ready,shortTime);
 
-                    if (block){
-                        yarp::os::Time::delay(shortTime);
-                    }
+                    			if (block) yarp::os::Time::delay(shortTime);
+				}
+				else if(command == "scissor")
+				{
+					output.addString("Tagliare");
+					
+					std::vector<Eigen::Isometry3d> leftPoses;
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.10,nominalHeight+0.1)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.10,nominalHeight-0.1)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.10,nominalHeight+0.1)));
+					leftPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist, 0.10,nominalHeight+0.0)));
+
+					std::vector<Eigen::Isometry3d> rightPoses;
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.10,nominalHeight-0.1)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.10,nominalHeight+0.1)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.10,nominalHeight-0.1)));
+					rightPoses.push_back(Eigen::Isometry3d(Eigen::Translation3d(torsoDist,-0.10,nominalHeight+0.0)));
+					
+					std::vector<double> times;
+					times.push_back(1.0*shortTime);
+					times.push_back(2.0*shortTime);
+					times.push_back(4.0*shortTime);
+					times.push_back(5.0*shortTime);
+
+					robot.move_to_poses(leftPoses,rightPoses,times);
 				}
 				else if(command == "shake")
 				{
-                    bool block = input.get(1).asBool();
+                    			bool block = input.get(1).asBool();
 
 					output.addString("Piacere");
 					robot.move_to_position(shake,shortTime);
 
-                    if (block){
-                        yarp::os::Time::delay(shortTime);
-                    }
+					if (block) yarp::os::Time::delay(shortTime);
 				}
 				else if(command == "stop")
 				{
@@ -219,7 +268,7 @@ int main(int argc, char *argv[])
 				}
 				else if(command == "wave")
 				{
-                    bool block = input.get(1).asBool();
+                    			bool block = input.get(1).asBool();
 
 					output.addString("Ciao");
 
@@ -239,9 +288,7 @@ int main(int argc, char *argv[])
 
 					robot.move_to_positions(wave,times);
 
-                    if (block){
-                        yarp::os::Time::delay(4.0*shortTime);
-                    }
+                    			if (block) yarp::os::Time::delay(4.0*shortTime);
 				}
 				else 	output.addString("Cosa");
 			}
@@ -298,7 +345,7 @@ int main(int argc, char *argv[])
 				{
 					if(robot.is_grasping())
 					{
-                        bool block = input.get(1).asBool();
+                				bool block = input.get(1).asBool();
 
 						output.addString("Capito");
 
@@ -311,11 +358,8 @@ int main(int argc, char *argv[])
 
 						robot.move_to_position(ready,shortTime);            // Move to ready configuration
 
-                        if (block){
-                            yarp::os::Time::delay(4.0*shortTime);
-                        }
+						if (block) yarp::os::Time::delay(4.0*shortTime);
 					}
-
 				}
 				else if(command == "right")
 				{
