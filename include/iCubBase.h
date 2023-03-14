@@ -29,12 +29,19 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		iCubBase(const std::string              &pathToURDF,
 		         const std::vector<std::string> &jointNames,
 		         const std::vector<std::string> &portNames,
-		         const Eigen::Isometry3d        &_torsoPose,
+		         const Eigen::Isometry3d        &torsoPose,
 		         const std::string              &robotName);
 		
-		// Joint Control Functions
-
+		
+		bool is_finished() const { return this->isFinished; }
+		
+		bool set_cartesian_gains(const double &stiffness, const double &damping);
+				       
+		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
+		
 		void halt();		                                                            // Stops the robot immediately
+		
+		// Joint Control Functions
 		
 		bool move_to_position(const Eigen::VectorXd &position,
 		                      const double &time);
@@ -45,8 +52,6 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		// Cartesian Control Functions
 		
 		bool is_grasping() const { return this->isGrasping; }
-		
-		bool is_finished() const { return this->isFinished; }
 		
 		bool move_to_pose(const Eigen::Isometry3d &leftPose,
 		                  const Eigen::Isometry3d &rightPose,
@@ -73,17 +78,13 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		// Information
 				       
 		bool print_hand_pose(const std::string &whichHand);                                 // As it says on the label
-		
-		bool set_cartesian_gains(const double &stiffness, const double &damping);
-				       
-		bool set_joint_gains(const double &proportional, const double &derivative);         // As it says on the label
 		               
 		Eigen::Isometry3d left_hand_pose()  const { return this->leftPose;  }
 		
 		Eigen::Isometry3d right_hand_pose() const { return this->rightPose; }
-				      
-	
+
 	protected:
+	
 		std::string name;                                                                   // As an internal reference
 		
 		Payload payload;                                                                    
@@ -93,7 +94,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		bool isFinished = false;
 	
 		double dt     = 0.01;                                                               // Default control frequency
-		double hertz  = 100;                                                                // Control frequency = 1/dt
+		double hertz  = 1/this->dt;                                                         // Control frequency
 		double maxAcc = 10;                                                                 // Limits the acceleration
 		double startTime;                                                                   // Used for timing the control loop
 		double endTime;                                                                     // Used for checking when actions are complete
@@ -116,7 +117,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		Eigen::Matrix<double,6,6> gainTemplate;                                             // Structure for the Cartesian gains
 		Eigen::MatrixXd J;                                                                  // Jacobian for both hands
 		Eigen::MatrixXd M;                                                                  // Inertia matrix
-		Eigen::PartialPivLU<Eigen::MatrixXd> Mdecomp;                                                        // LU decomposition: M = L*U
+		Eigen::MatrixXd Minv;                                                               // Inverse of the inertia
 		Eigen::Isometry3d leftPose, rightPose;                                              // Pose of the left and right hands
 		
 		// Grasping
@@ -124,7 +125,7 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 		
 		// Kinematics & dynamics
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
-		iDynTree::Transform          torsoPose;                                             // Needed for inverse dynamics; not used yet
+		iDynTree::Transform          _torsoPose;                                            // Needed for inverse dynamics; not used yet
 			                       	
 		// Internal functions
 				
@@ -156,11 +157,11 @@ class iCubBase : public yarp::os::PeriodicThread,                               
 iCubBase::iCubBase(const std::string              &pathToURDF,
                    const std::vector<std::string> &jointNames,
                    const std::vector<std::string> &portNames,
-                   const Eigen::Isometry3d        &_torsoPose,
+                   const Eigen::Isometry3d        &torsoPose,
                    const std::string              &robotName) :
                    yarp::os::PeriodicThread(0.01),                                                  // Create thread to run at 100Hz
                    JointInterface(jointNames, portNames),                                           // Communicates with joint motors
-                   torsoPose(Eigen_to_iDynTree(_torsoPose)),
+                   _torsoPose(Eigen_to_iDynTree(torsoPose)),
                    name(robotName)
 {
 	// Set the Cartesian control gains	
@@ -174,8 +175,9 @@ iCubBase::iCubBase(const std::string              &pathToURDF,
 	this->K = 10*this->gainTemplate;                                                            // Set the spring forces
 	this->D =  5*this->gainTemplate;                                                            // Set the damping forces
 	
-	this->J.resize(12,this->n);
-	this->M.resize(this->n,this->n);
+	this->J.resize(12,this->numJoints);
+	this->M.resize(this->numJoints,this->numJoints);
+	this->Minv.resize(this->numJoints,this->numJoints);
 
 	// G = [    I    0     I    0 ]
 	//     [ S(left) I S(right) I ]
@@ -194,19 +196,20 @@ iCubBase::iCubBase(const std::string              &pathToURDF,
 	C.block(3,3,3,3).setIdentity();
 	C.block(3,6,3,3).setZero();
 	C.block(3,9,3,3) = -C.block(0,0,3,3);
-
-	// Load a model
-	iDynTree::ModelLoader loader;                                                               // Temporary object
-
+	
+	
+	iDynTree::ModelLoader loader;                                                               // Load a model of the robot
+	
 	if(not loader.loadReducedModelFromFile(pathToURDF, jointNames, "urdf"))
 	{
-		std::cerr << "[ERROR] [ICUB BASE] Constructor: "
-		          << "Could not load model from the given path " << pathToURDF << "." << std::endl;
+		std::string message = "[ERROR] [ICUB BASE] Constructor: "
+		                      "Could not load a model from the path " + pathToURDF + ".";
+		                      
+		throw std::runtime_error(message);
 	}
 	else
 	{
-		// Get the model and add some additional frames for the hands
-		iDynTree::Model temp = loader.model();
+		iDynTree::Model temp = loader.model();                                              // Get the model
 		
 		// Add custom hand frames based on the model of the robot
 		if(this->name == "icub2")
@@ -233,37 +236,42 @@ iCubBase::iCubBase(const std::string              &pathToURDF,
                 				                          iDynTree::Position(-0.00387, -0.00280, -0.0597)));
 		}
 		else
-		{
-			std::cerr << "[ERROR] [ICUB BASE] Constructor: "
-			          << "Expected icub2, icub3 or ergocub for the robot name, "
-			          << "but your input was " << robotName << "." << std::endl;
+		{	std::string message = "[ERROR] [ICUB BASE] Constructor: "
+                                              "Expected icub2, icub3 or ergocub for the robot name, "
+                                              "but your input was " + robotName + ".";
+                                              
+			throw std::invalid_argument(message);
 		}
 		
 		// Now load the model in to the KinDynComputations class	    
 		if(not this->computer.loadRobotModel(temp))
 		{
-			std::cerr << "[ERROR] [ICUB BASE] Constructor: "
-				  << "Could not generate iDynTree::KinDynComputations class from given model: "
-				  << loader.model().toString() << std::endl;
+			std::string message = "[ERROR] [ICUB BASE] Constructor: "
+			                      "Could not generate iDynTree::KinDynComputations class from the model "
+			                    + loader.model().toString() + ".";
+
+			throw std::runtime_error(message);
 		}
 		else
 		{
-			this->n = this->computer.model().getNrOfDOFs();                             // Get number of joints from underlying model
-
 			// Resize vectors based on model information
-			this->jointTrajectory.resize(this->n);                                      // Trajectory for joint motion control
-			this->q.resize(this->n);                                                    // Vector of measured joint positions
-			this->qdot.resize(this->n);                                                 // Vector of measured joint velocities
+			this->jointTrajectory.resize(this->numJoints);                              // Trajectory for joint motion control
+			this->q.resize(this->numJoints);                                            // Vector of measured joint positions
+			this->qdot.resize(this->numJoints);                                         // Vector of measured joint velocities
 			
-			std::cout << "[INFO] [ICUB BASE] Successfully created iDynTree model from "
-			          << pathToURDF << "." << std::endl;
-
-			update_state();                                                             // Get the current joint state
 			
-			if(not activate_control())
+			if(update_state())
 			{
-				std::cerr << "[ERROR] [ICUB BASE] Constructor: "
-					  << "Could not activate joint control." << std::endl;
+				std::cout << "[INFO] [ICUB BASE] Successfully created iDynTree model "
+				          << "from " << pathToURDF + ".\n";
+			}
+			else
+			{
+				std::string message = "[ERROR] [ICUB BASE] Constructor: "
+				                      "Successfully created model from " + pathToURDF + " "
+				                      "but was unable to read joint encoders.";
+				                      
+				throw std::runtime_error(message);
 			}
 		}
 	}
@@ -420,11 +428,11 @@ bool iCubBase::release_object()
 bool iCubBase::move_to_position(const Eigen::VectorXd &position,
                                 const double &time)
 {
-	if(position.size() != this->n)
+	if(position.size() != this->numJoints)
 	{
 		std::cerr << "[ERROR] [ICUB BASE] move_to_position(): "
 			  << "Position vector had " << position.size() << " elements, "
-			  << "but this model has " << this->n << " joints." << std::endl;
+			  << "but this model has " << this->numJoints << " joints." << std::endl;
 			  
 		return false;
 	}
@@ -458,7 +466,7 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 		iDynTree::VectorDynSize waypoint(m);                                                // All the waypoints for a single joint
 		iDynTree::VectorDynSize t(m);                                                       // Times to reach the waypoints
 		
-		for(int i = 0; i < this->n; i++)                                                    // For the ith joint...
+		for(int i = 0; i < this->numJoints; i++)                                            // For the ith joint...
 		{
 			for(int j = 0; j < m; j++)                                                  // ... and jth waypoint
 			{
@@ -469,10 +477,10 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 				}
 				else
 				{
-					double target = positions[j-1][i];                                  // Get the jth target for the ith joint
+					double target = positions[j-1][i];                          // Get the jth target for the ith joint
 					
-					     if(target < this->pLim[i][0]) target = this->pLim[i][0] + 0.001;// Just above the lower limit
-					else if(target > this->pLim[i][1]) target = this->pLim[i][1] - 0.001;// Just below the upper limit
+					     if(target < this->positionLimit[i][0]) target = this->positionLimit[i][0] + 0.001;
+					else if(target > this->positionLimit[i][1]) target = this->positionLimit[i][1] - 0.001;
 					
 					waypoint[j] = target;                                       // Assign the target for the jth waypoint
 					
@@ -589,7 +597,7 @@ void iCubBase::halt()
 {
 	if(isRunning()) stop();                                                                     // Stop any control threads that are running
 	
-	for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                          // Hold current joint position
+	send_joint_commands(this->q);                                                               // Hold current joint positions
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -619,40 +627,35 @@ bool iCubBase::update_state()
 {
 	if(JointInterface::read_encoders())
 	{	
-		// Get the values from the JointInterface class (is there a smarter way???)
-		std::vector<double> temp_position = joint_positions();
-		std::vector<double> temp_velocity = joint_velocities();
+		// Get the values from the JointInterface class so we can use them here
+		this->q = joint_positions();
+		this->qdot = joint_velocities();
 		
-		// Transfer joint state values for use in this class
-		for(int i = 0; i < this->n; i++)
-		{
-			this->q[i]    = temp_position[i];
-			this->qdot[i] = temp_velocity[i];
-		}
+		iDynTree::VectorDynSize tempPosition(*this->q.data());
+		iDynTree::VectorDynSize tempVelocity(*this->qdot.data());
 
 		// Put them in to the iDynTree class to solve the kinematics and dynamics
-		if(this->computer.setRobotState(this->torsoPose,                                    // As it says on the label
-		                                iDynTree::VectorDynSize(temp_position),             // Joint positions
+		if(this->computer.setRobotState(this->_torsoPose,                                   // As it says on the label
+		                                tempPosition,                                       // Joint positions
 		                                iDynTree::Twist(iDynTree::GeomVector3(0,0,0), iDynTree::GeomVector3(0,0,0)), // Torso twist
-		                                iDynTree::VectorDynSize(temp_velocity),             // Joint velocities
+		                                tempVelocity,                                       // Joint velocities
 		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity
 		{
 		
 			// Get the Jacobian for the hands
-			Eigen::MatrixXd temp(6,6+this->n);                                          // Temporary storage
+			Eigen::MatrixXd temp(6,6+this->numJoints);                                  // Temporary storage
 			
-			this->computer.getFrameFreeFloatingJacobian("left",temp);                 // Compute left hand Jacobian
-			this->J.block(0,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
+			this->computer.getFrameFreeFloatingJacobian("left",temp);                   // Compute left hand Jacobian
+			this->J.block(0,0,6,this->numJoints) = temp.block(0,6,6,this->numJoints);   // Assign to larger matrix
 			
 			this->computer.getFrameFreeFloatingJacobian("right",temp);                  // Compute right hand Jacobian
-			this->J.block(6,0,6,this->n) = temp.block(0,6,6,this->n);                   // Assign to larger matrix
+			this->J.block(6,0,6,this->numJoints) = temp.block(0,6,6,this->numJoints);   // Assign to larger matrix
 			
 			// Compute inertia matrix
-			temp.resize(6+this->n,6+this->n);
+			temp.resize(6+this->numJoints,6+this->numJoints);
 			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
-			this->M = temp.block(6,6,this->n,this->n);                                  // Remove floating base
-			
-			this->Mdecomp = M.partialPivLu();                                           // Decompose M = L*U
+			this->M = temp.block(6,6,this->numJoints,this->numJoints);                  // Remove floating base
+			this->Minv = this->M.partialPivLu().inverse();
 			
 			// Update hand poses
 			this->leftPose  = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));

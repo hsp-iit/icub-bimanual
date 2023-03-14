@@ -16,7 +16,8 @@ class PositionControl : public iCubBase
 			        const std::vector<std::string> &jointNames,
 			        const std::vector<std::string> &portNames,
 			        const Eigen::Isometry3d        &_torsoPose,
-			        const std::string              &robotName) :
+			        const std::string              &robotName)
+			        :
 	        iCubBase(pathToURDF, jointNames, portNames, _torsoPose, robotName) {}
 		
 		// Inherited from the iCubBase class   
@@ -41,8 +42,8 @@ class PositionControl : public iCubBase
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::compute_joint_limits(double &lower, double &upper, const int &i)
 {
-	lower = this->pLim[i][0] - this->qRef[i];
-	upper = this->pLim[i][1] - this->qRef[i];
+	lower = this->positionLimit[i][0] - this->qRef[i];
+	upper = this->positionLimit[i][1] - this->qRef[i];
 }
 
 
@@ -63,7 +64,7 @@ bool PositionControl::threadInit()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::threadRelease()
 {
-	for(int i = 0; i < this->n; i++) send_joint_command(i,this->q[i]);                          // Maintain current joint position
+	send_joint_commands(this->q);                                                               // Maintain current joint position
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,13 +108,11 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 {
-	Eigen::VectorXd dq(this->n); dq.setZero();                                                  // Value to be returned
+	Eigen::VectorXd dq(this->numJoints); dq.setZero();                                          // Value to be returned
 	
-	for(int i = 0; i < this->n; i++)
+	for(int i = 0; i < this->numJoints; i++)
 	{
 		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->q[i];                  
-		
-//		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->qHat[i];
 	}
 	
 	return dq;

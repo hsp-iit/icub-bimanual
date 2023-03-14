@@ -11,7 +11,7 @@
 class iCub2 : public PositionControl
 {
 	public:
-		iCub2(const std::string &pathToURDF,
+		iCub2(const std::string              &pathToURDF,
 		      const std::vector<std::string> &jointNames,
 		      const std::vector<std::string> &portNames);
 	
@@ -35,7 +35,8 @@ class iCub2 : public PositionControl
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 iCub2::iCub2(const std::string &pathToURDF,
              const std::vector<std::string> &jointNames,
-             const std::vector<std::string> &portNames) :
+             const std::vector<std::string> &portNames)
+             :
              PositionControl(pathToURDF,
                              jointNames,
                              portNames,
@@ -52,7 +53,7 @@ iCub2::iCub2(const std::string &pathToURDF,
 	// but we have two arms so we need to double up the constraint matrix.
 	
 	double c = 1.71;
-	this->A = Eigen::MatrixXd::Zero(10,this->n);
+	this->A = Eigen::MatrixXd::Zero(10,this->numJoints);
 	this->A.block(0,3,5,3) <<  c, -c,  0,
 	                           c, -c, -c,
 	                           0,  1,  1,
@@ -77,16 +78,16 @@ iCub2::iCub2(const std::string &pathToURDF,
 	// B = [ 0   -I ]
 	//     [ 0    I ]
 	//     [ 0    A ]
-	this->B.resize(10+2*this->n,12+this->n);                                                    // 2*n for joint limits, 10 for shoulder limits
-	this->B.block(        0, 0,10+2*this->n,12)      = Eigen::MatrixXd::Zero(10+2*this->n,12);
-	this->B.block(        0,12,     this->n,this->n) =-Eigen::MatrixXd::Identity(this->n,this->n);
-	this->B.block(  this->n,12,     this->n,this->n) = Eigen::MatrixXd::Identity(this->n,this->n);
-	this->B.block(2*this->n,12,          10,this->n) = this->A;
+	this->B.resize(10+2*this->numJoints,12+this->numJoints);                                    // 2*n for joint limits, 10 for shoulder limits
+	this->B.block(                0, 0,10+2*this->numJoints,             12) = Eigen::MatrixXd::Zero(10+2*this->numJoints,12);
+	this->B.block(                0,12,     this->numJoints,this->numJoints) =-Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+	this->B.block(  this->numJoints,12,     this->numJoints,this->numJoints) = Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+	this->B.block(2*this->numJoints,12,                  10,this->numJoints) = this->A;
 	
-	this->z.resize(10+2*this->n);
+	this->z.resize(10+2*this->numJoints);
 	
 	// Set the desired configuration for the arms when running in Cartesian mode
-	this->setPoint.resize(this->n);
+	this->setPoint.resize(this->numJoints);
 	this->setPoint.head(3).setZero();                                                           // Torso joints -> stay upright if possible
 	this->setPoint(3) = -0.5;
 	this->setPoint(4) =  0.5;
@@ -109,18 +110,18 @@ void iCub2::run()
 	
 	if(this->controlSpace == joint)
 	{
-		Eigen::VectorXd qd(this->n);
-		Eigen::VectorXd q0(this->n);
+		Eigen::VectorXd qd(this->numJoints);
+		Eigen::VectorXd q0(this->numJoints);
 		
-		for(int i = 0; i < this->n; i++)
+		for(int i = 0; i < this->numJoints; i++)
 		{
 			qd(i) = this->jointTrajectory[i].evaluatePoint(elapsedTime);                // Desired state for the given time
 			
-			double lower = this->pLim[i][0];
-			double upper = this->pLim[i][1];
+			double lower = this->positionLimit[i][0];
+			double upper = this->positionLimit[i][1];
 
-			this->z(i)         = -upper;
-			this->z(i+this->n) =  lower;
+			this->z(i)                 = -upper;
+			this->z(i+this->numJoints) =  lower;
 			
 			q0(i) = 0.5*(lower + upper);
 		}
@@ -129,9 +130,9 @@ void iCub2::run()
 		
 		try // to solve the QP problem
 		{
-			qRef = solve(Eigen::MatrixXd::Identity(this->n,this->n),                    // H
+			qRef = solve(Eigen::MatrixXd::Identity(this->numJoints,this->numJoints),    // H
 				    -qd,                                                            // f
-				     this->B.block(0,12,10+2*this->n,this->n),                      // Remove component for Lagrange multipliers in Cartesian mode
+				     this->B.block(0,12,10+2*this->numJoints,this->numJoints),      // Remove component for Lagrange multipliers in Cartesian mode
 				     this->z,                             
 				     q0);
 		}
@@ -144,43 +145,43 @@ void iCub2::run()
 	{
 		Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);                       // Feedforward + feedback control
 		Eigen::VectorXd redundantTask = 0.01*(this->setPoint - this->q);                    // As it says on the label
-		Eigen::VectorXd q0 = Eigen::VectorXd::Zero(this->n);
+		Eigen::VectorXd q0 = Eigen::VectorXd::Zero(this->numJoints);
 		
 		// Solve for instantaneous joint limits
-		for(int i = 0; i < this->n; i++)
+		for(int i = 0; i < this->numJoints; i++)
 		{
 			double lower, upper;
 			compute_joint_limits(lower,upper,i);
 			this->z(i) = -upper;
-			this->z(i+this->n) = lower;
+			this->z(i+this->numJoints) = lower;
 			q0(i) = 0.5*(lower + upper);
 		}
 		this->z.tail(10) = -(this->A*this->qRef + this->b);
 		
 		// H = [ 0  J ]
 		//     [ J' M ]
-		Eigen::MatrixXd H(12+this->n,12+this->n);
-		H.block( 0, 0,     12,     12).setZero();
-		H.block( 0,12,     12,this->n) = this->J;
-		H.block(12, 0,this->n,     12) = this->J.transpose();
-		H.block(12,12,this->n,this->n) = this->M;
+		Eigen::MatrixXd H(12+this->numJoints,12+this->numJoints);
+		H.block( 0, 0,             12,             12).setZero();
+		H.block( 0,12,             12,this->numJoints) = this->J;
+		H.block(12, 0,this->numJoints,             12) = this->J.transpose();
+		H.block(12,12,this->numJoints,this->numJoints) = this->M;
 		
 		// f = [      -dx       ]
 		//   = [ -M*redundantTask ]
-		Eigen::VectorXd f(12+this->n);
-		f.head(12)      = -dx;                                                              // Primary task
-		f.tail(this->n) = -M*redundantTask;
+		Eigen::VectorXd f(12+this->numJoints);
+		f.head(12)              = -dx;                                                      // Primary task
+		f.tail(this->numJoints) = -M*redundantTask;
 		
 		// Compute the start point for the QP solver
-		Eigen::VectorXd startPoint(12+this->n);
-		startPoint.head(12) = (this->J*this->Mdecomp.inverse()*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - dx); // These are the Lagrange multipliers
-		startPoint.tail(this->n) = q0;
+		Eigen::VectorXd startPoint(12+this->numJoints);
+		startPoint.head(12) = (this->J*this->Minv*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - dx); // These are the Lagrange multipliers
+		startPoint.tail(this->numJoints) = q0;
 		
-		Eigen::VectorXd dq(this->n);
+		Eigen::VectorXd dq(this->numJoints);
 		
 		try
 		{
-			dq = (solve(H,f,this->B,z,startPoint)).tail(this->n);                       // We can ignore the Lagrange multipliers
+			dq = (solve(H,f,this->B,z,startPoint)).tail(this->numJoints);               // We can ignore the Lagrange multipliers
 		}
 		catch(const char* error_message)
 		{
@@ -194,32 +195,32 @@ void iCub2::run()
 			Eigen::MatrixXd Jc = this->C*this->J;                                       // Constraint Jacobian
 			
 			// Set up the new start point for the solver
-			startPoint.resize(6+this->n);
-			startPoint.head(6)  = (Jc*this->Mdecomp.inverse()*Jc.transpose())*Jc*dq;    // Lagrange multipliers
+			startPoint.resize(6+this->numJoints);
+			startPoint.head(6)  = (Jc*this->Minv*Jc.transpose())*Jc*dq;                 // Lagrange multipliers
 			startPoint.tail(12) = dq;                                                   // Previous solution
 			
 			// H = [ 0   Jc ]
 			//     [ Jc' M  ]
-			H.resize(6+this->n,6+this->n);
-			H.block(0,0,6,6).setZero();
-			H.block(0,6,6,this->n)       = Jc;
-			H.block(6,0,this->n,6)       = Jc.transpose();
-			H.block(6,6,this->n,this->n) = M;
+			H.resize(6+this->numJoints,6+this->numJoints);
+			H.block(0,0,              6,              6).setZero();
+			H.block(0,6,              6,this->numJoints) = Jc;
+			H.block(6,0,this->numJoints,              6) = Jc.transpose();
+			H.block(6,6,this->numJoints,this->numJoints) = M;
 			
 			// f = [   0   ]
 			//     [ -M*dq ]
-			f.resize(6+this->n);
+			f.resize(6+this->numJoints);
 			f.head(6).setZero();
-			f.tail(this->n) = -this->M*dq;
+			f.tail(this->numJoints) = -this->M*dq;
 			
 			try // to solve the constrained motion
 			{
 				dq = (solve(H,
 				            f,
-				            this->B.block(0,6,10+2*this->n,6+this->n),              // Reduce the constraint since we now have -6 Lagrange multipliers
+				            this->B.block(0,6,10+2*this->numJoints,6+this->numJoints), // Reduce the constraint since we now have -6 Lagrange multipliers
 				            z,
 				            startPoint)
-				     ).tail(this->n);                                               // We can throw away the Lagrange multipliers from the result
+				     ).tail(this->numJoints);                                       // We can throw away the Lagrange multipliers from the result
 			}
 			catch(const char* error_message)
 			{
@@ -231,6 +232,6 @@ void iCub2::run()
 		this->qRef += dq;                                                                   // Update the reference position
 	}
 
-	for(int i = 0; i < this->n; i++) send_joint_command(i,qRef[i]);
+//	for(int i = 0; i < this->numJoints; i++) send_joint_command(i,qRef[i]);
 }
 #endif

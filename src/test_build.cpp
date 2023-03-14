@@ -3,32 +3,44 @@
  //                                    Test build for code                                         //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 #include <iCub2.h>
-#include <Payload.h>
 
 std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
 
 std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
 		        "r_shoulder_pitch", "r_shoulder_roll", "r_shoulder_yaw", "r_elbow", "r_wrist_prosup", "r_wrist_pitch", "r_wrist_yaw"};
-
+		        
 int main(int argc, char *argv[])
-{
-	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
-	if(argc != 2)									
+{	          
+	if(argc != 3)
 	{
-		std::cerr << "[ERROR] [TEST BUILD] Path to urdf model required."
-			  << " Usage: './grasping_demo ~/path/to/model.urdf'" << std::endl;
-		return 1;                                                                           // Close with error
-	}
-	else
-	{
-		std::string file = argv[1];                                                         // Get the urdf model path
-		iCub2 robot(file, jointList, portList);
-
-		std::cout << "Success! All done." << std::endl;
+		std::cerr << "[ERROR] Not enough input arguments. Usage: "
+		          << "./test_build /portName path/to/model.urdf\n";
+		
+		return 1;
 	}
 	
-	return 0;
+	std::string portName   = argv[1];
+/*	std::vector<string> portList;
+	portList.push_back(portName+"/torso");
+	portList.push_back(portName+"/left_arm");
+	portList.push_back(portName+"/right_arm");*/
+	
+	std::string pathToURDF = argv[2];
+
+	try { iCub2 robot(pathToURDF,portList,jointList); }
+	catch(std::exception &error)
+	{
+		std::cout << "[ERROR] Unable to instantiate robot control class. "
+		          << "See the error message below for the problem.\n";
+		          
+		std::cerr << error.what() << std::endl;
+		
+		return 1;
+	}
+	
+	std::cout << "Success!\n";
+	
+	return 0;                                                                                   // No problems with main
 }
