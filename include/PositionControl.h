@@ -13,19 +13,20 @@ class PositionControl : public iCubBase
 {
 	public:
 		PositionControl(const std::string              &pathToURDF,
-			        const std::vector<std::string> &jointNames,
-			        const std::vector<std::string> &portNames,
-			        const Eigen::Isometry3d        &_torsoPose,
-			        const std::string              &robotName)
-			        :
-	        iCubBase(pathToURDF, jointNames, portNames, _torsoPose, robotName) {}
-		
+			        const std::vector<std::string> &jointList,
+			        const std::vector<std::string> &portList,
+			        const Eigen::Isometry3d        &torsoPose,
+			        const std::string              &robotModel)
+		:
+	        iCubBase(pathToURDF, jointList, portList, torsoPose, robotModel) {}
+/*		
 		// Inherited from the iCubBase class   
 		void compute_joint_limits(double &lower, double &upper, const int &i);
 			              
 		Eigen::Matrix<double,12,1> track_cartesian_trajectory(const double &time);
 		
 		Eigen::VectorXd track_joint_trajectory(const double &time);
+*/
 		
 		// Inherited from the yarp::PeriodicThread class
 		bool threadInit();
@@ -33,89 +34,6 @@ class PositionControl : public iCubBase
 		
 	protected:
 		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
-		
 };                                                                                                  // Semicolon needed after class declaration
-
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                             Compute instantenous position limits                               //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-void PositionControl::compute_joint_limits(double &lower, double &upper, const int &i)
-{
-	lower = this->positionLimit[i][0] - this->qRef[i];
-	upper = this->positionLimit[i][1] - this->qRef[i];
-}
-
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                                 Initialise the control thread                                  //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool PositionControl::threadInit()
-{
-	this->isFinished = false;                                                                   
-	this->qRef = this->q;                                                                       // Use current joint configuration as reference point
-	this->startTime = yarp::os::Time::now();
-	return true;
-	// jump immediately to run();
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                             Executed after a control thread is stopped                         //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-void PositionControl::threadRelease()
-{
-	send_joint_commands(this->q);                                                               // Maintain current joint position
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                        Solve a discrete time step for Cartesian control                        //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const double &time)
-{
-	// Variables used in this scope
-	Eigen::Matrix<double,12,1> dx; dx.setZero();                                                // Value to be returned
-	Eigen::Isometry3d pose;                                                                     // Desired pose
-	Eigen::Matrix<double,6,1> vel, acc;
-	
-	if(this->isGrasping)
-	{
-		this->payloadTrajectory.get_state(pose,vel,acc,time);
-		
-		dx = this->G.transpose()*( this->dt*vel + 1e-02*pose_error(pose,this->payload.pose()) );		
-	}
-	else
-	{
-		if(this->leftControl)
-		{
-			this->leftTrajectory.get_state(pose,vel,acc,time);
-			
-			dx.head(6) = this->dt*vel + 1e-02*pose_error(pose,this->leftPose);
-		}
-		
-		if(this->leftControl)
-		{
-			this->rightTrajectory.get_state(pose,vel,acc,time);
-			
-			dx.tail(6) = this->dt*vel + 1e-02*pose_error(pose,this->rightPose);
-		}
-	}
-	
-	return dx;
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                     Solve the step size to track the joint trajectory                          //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
-{
-	Eigen::VectorXd dq(this->numJoints); dq.setZero();                                          // Value to be returned
-	
-	for(int i = 0; i < this->numJoints; i++)
-	{
-		dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->q[i];                  
-	}
-	
-	return dq;
-}
 
 #endif

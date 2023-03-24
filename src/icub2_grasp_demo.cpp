@@ -2,10 +2,11 @@
  //                          Two-handed grasping demo with the iCub2.5                             //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <iCub2.h>
-#include <iCub2Configurations.h>
+
+#include <PositionControl.h>
 #include <yarp/os/RpcServer.h>
 
+/*
 double long_time  = 4.0;
 double short_time = 2.0;
 
@@ -13,15 +14,57 @@ double mass = 0.1;
 Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0,
                                                                0.0, 1e-06,   0.0,
                                                                0.0,   0.0, 1e-06).finished();
-                                                               
-
-std::vector<std::string> portList = {"/icubSim/torso", "/icubSim/left_arm", "/icubSim/right_arm"};
-//std::vector<std::string> portList = {"/icub/torso", "/icub/left_arm", "/icub/right_arm"};
-
+*/
 std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
 		        "r_shoulder_pitch", "r_shoulder_roll", "r_shoulder_yaw", "r_elbow", "r_wrist_prosup", "r_wrist_pitch", "r_wrist_yaw"};
 
+
+int main(int argc, char* argv[])
+{
+	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
+	if(argc != 3)
+	{
+		std::cerr << "[ERROR] [ICUB2 GRASP DEMO] Port name and path to URDF are required. "
+		          << "Usage: ./icub2_grasp_demo /portName /path/to/model.urdf" << std::endl;
+		
+		return 1;                                                                           // Close with error
+	}
+	else
+	{
+		std::string portName   = argv[1];                                                   // Get the port names
+		std::string pathToURDF = argv[2];                                                   // Get the file path
+		
+		// Generate port list prefixes
+		std::vector<std::string> portList;
+		portList.push_back(portName + "/torso");
+		portList.push_back(portName + "/left_arm");
+		portList.push_back(portName + "/right_arm");
+		
+		try
+		{
+			PositionControl robot(pathToURDF,
+			               jointList,
+			               portList,
+			               Eigen::Isometry3d(Eigen::Translation3d(0,0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())),
+			               "iCub2");
+			
+			robot.close();
+			
+			return 0;                                                                   // No problems with main
+		}
+		catch(std::exception &exception)
+		{
+			std::cerr << "[ERROR] [ICUB2 GRASP DEMO] There was a problem with initialization. "
+			          << "See the error message below." << std::endl;
+			          
+			std::cout << exception.what() << std::endl;                                 // Inform the user
+			
+			return 1;                                                                   // Close with error
+		}
+	}
+}
+/*
 int main(int argc, char *argv[])
 {
 
@@ -283,3 +326,4 @@ int main(int argc, char *argv[])
 	return 0;
 	}
 }
+*/

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8.9)					                            # Minimum 
 
 project(icub-bimanual)							                            # ${PROJECT_NAME}
 
+# cmake -DCMAKE_BUILD_TYPE=Release ..
+
 if(NOT CMAKE_BUILD_TYPE)
 #	set(CMAKE_BUILD_TYPE Debug)                                                                 # Not optimised
 	set(CMAKE_BUILD_TYPE Release)                                                               # Optimised
@@ -29,14 +31,14 @@ add_subdirectory(gazebo)                                                        
 include_directories(include)                                                                        # Location of header files
 
 #################################### Executables to be compiled ####################################
-add_executable(test_build src/test_build.cpp)
+add_executable(test_build src/test_build.cpp include/JointInterface.cpp)
 target_link_libraries(test_build Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
 #add_executable(grasp-demo src/grasp-demo.cpp)
 #target_link_libraries(grasp-demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
-#add_executable(icub2_grasp_demo src/icub2_grasp_demo.cpp)
-#target_link_libraries(icub2_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
+add_executable(icub2_grasp_demo src/icub2_grasp_demo.cpp include/PositionControl.cpp include/iCubBase.cpp include/JointInterface.cpp)
+target_link_libraries(icub2_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
 #add_executable(ergocub_grasp_demo src/ergocub_grasp_demo.cpp)
 #target_link_libraries(ergocub_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
