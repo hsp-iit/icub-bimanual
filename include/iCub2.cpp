@@ -11,13 +11,8 @@ iCub2::iCub2(const std::string &pathToURDF,
                              jointNames,
                              portNames,
                              Eigen::Isometry3d(Eigen::Translation3d(0.0,0.0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())),
-                             "icub2")
+                             "iCub2")
 {
-/*
-	// Lower the gains since we're running in velocity mode
-	set_joint_gains(5.0, 0.01);                                                                 // We don't actually care about the derivative
-	set_cartesian_gains(10.0, 0.01);
-	
 	// Set the constraints for the iCub2 shoulder tendons.
 	// A *single* arm is constrained by
 	//      A*q + b > 0,
@@ -68,14 +63,51 @@ iCub2::iCub2(const std::string &pathToURDF,
 	this->setPoint(8) = -0.1;
 	this->setPoint(9) =  0.0;
 	this->setPoint.tail(7) = this->setPoint.block(3,0,7,1);
-*/	
+
 }
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                     MAIN CONTROL LOOP                                          //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void iCub2::run()
 {
-/*
+	if(update_state())
+	{
+		double elapsedTime = yarp::os::Time::now() - this->startTime;                       // Time since start of the control loop
+		
+		if(this->controlSpace == joint)
+		{
+			Eigen::VectorXd q_d(this->numJoints);                                       // Desired joint positions
+			
+			// Get the desired position from the joint trajectory generator
+			for(int i = 0; i < this->numJoints; i++)
+			{
+				q_d(i) = this->jointTrajectory[i].evaluatePoint(elapsedTime);       // Desired position for the given time
+				
+				// Position limits
+				double lower = this->positionLimit[i][0];
+				double upper = this->positionLimit[i][1];
+				 
+				// Convert to constraint vector for the QP solver
+				this->z(i)                 = -upper;
+				this->z(i+this->numJoints) =  lower;
+			}
+		}
+		else // this->controlSpace == cartesian
+		{
+			std::cout << "Worker bees can leave.\n"
+			          << "Even drones can fly away.\n"
+			          << "The Queen is their slave.\n";
+		}
+	}
+	else
+	{
+		halt();                                                                             // Stop the robot moving
+		close();                                                                            // Close the connection with the joints to prevent problems
+	}
+}
+
+
+/* OLD:
 	update_state();                                                                             // Update kinematics, dynamics, constraints
 	
 	double elapsedTime = yarp::os::Time::now() - this->startTime;                               // Time since start of control loop
@@ -206,4 +238,3 @@ void iCub2::run()
 
 //	for(int i = 0; i < this->numJoints; i++) send_joint_command(i,qRef[i]);
 */
-}
