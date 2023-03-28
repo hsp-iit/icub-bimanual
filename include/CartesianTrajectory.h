@@ -30,8 +30,6 @@ class CartesianTrajectory
 	
 	private:
 	
-		bool isValid = false;                                                               // Won't do anything if false
-		
 		int numPoses;                                                                       // Number of poses
 		
 		std::vector<iDynTree::CubicSpline> spline;                                          // Array of spline objects
