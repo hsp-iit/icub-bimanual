@@ -3,7 +3,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-#include <PositionControl.h>
+#include <iCub2.h>
 #include <yarp/os/RpcServer.h>
 
 /*
@@ -43,11 +43,7 @@ int main(int argc, char* argv[])
 		
 		try
 		{
-			PositionControl robot(pathToURDF,
-			               jointList,
-			               portList,
-			               Eigen::Isometry3d(Eigen::Translation3d(0,0,0.63)*Eigen::AngleAxisd(M_PI,Eigen::Vector3d::UnitZ())),
-			               "iCub2");
+			iCub2 robot(pathToURDF, jointList, portList);
 			
 			robot.close();
 			
