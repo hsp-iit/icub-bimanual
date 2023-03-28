@@ -1,33 +1,28 @@
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-   //                                                                                                //
-  //          A trajectory across two or more poses (position & orientation) in 3D space.           //
- //                                                                                                //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 #include <CartesianTrajectory.h>
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                         Constructor                                            //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &poses,
-                                         const std::vector<double> &times) :
+                                         const std::vector<double>            &times)
+                                         :
                                          numPoses(poses.size())
 {
 	// Check that the inputs are sound
-	std::string message = "[ERROR] [CARTESIAN TRAJECTORY] Constructor: ";
+	std::string errorMessage = "[ERROR] [CARTESIAN TRAJECTORY] Constructor: ";
 	
 	if(poses.size() != times.size())
 	{
-		message += "Pose vector had " + std::to_string(poses.size()) + " elements, and the "
-		           "time vector had " + std::to_string(times.size()) + " elements.";
+		errorMessage += "Pose vector had " + std::to_string(poses.size()) + " elements, and the "
+		                "time vector had " + std::to_string(times.size()) + " elements.";
 		
-		throw std::invalid_argument(message);
+		throw std::invalid_argument(errorMessage);
 	}
 	else if(poses.size() < 2)
 	{
-		message += "A minimum of 2 poses is needed to create a trajectory.";
+		errorMessage += "A minimum of 2 poses is needed to create a trajectory.";
 		
-		throw std::invalid_argument(message);
+		throw std::invalid_argument(errorMessage);
 	}
 	else
 	{
@@ -69,11 +64,12 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 		this->spline.resize(6);
 		for(int i = 0; i < 6; i++)
 		{
-			this->spline[i].setData(iDynTree::VectorDynSize(times),
-		 	                        iDynTree::VectorDynSize(points[i]));
+			if(not this->spline[i].setData(iDynTree::VectorDynSize(times), iDynTree::VectorDynSize(points[i])))
+			{
+				errorMessage += "Unable to set the spline data.";
+				throw std::runtime_error(errorMessage);
+			}
 		}
-		
-		this->isValid = true;
 	}
 }
 
@@ -82,24 +78,17 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::Isometry3d CartesianTrajectory::get_pose(const double &time)
 {
-	double t = time;
+	// NOTE TO FUTURE SELF:
+	// There are no controls here if this function is called before the trajectory
+	// is fully constructed...
 	
-	if(not this->isValid)
-	{
-		std::cerr << "[ERROR] [CARTESIAN TRAJECTORY] get_pose(): "
-		          << "There was a problem during the construction of this object. "
-		          << "Could not get the pose." << std::endl;
-		          
-		t = 0.0;
-	}
-
-	double pos[3];
-	double rpy[3];
+	double pos[3];                                                                              // Position vector
+	double rpy[3];                                                                              // Euler angles
 	
 	for(int i = 0; i < 3; i++)
 	{
-		pos[i] = this->spline[ i ].evaluatePoint(t);
-		rpy[i] = this->spline[i+3].evaluatePoint(t);
+		pos[i] = this->spline[ i ].evaluatePoint(time);
+		rpy[i] = this->spline[i+3].evaluatePoint(time);
 	}
 	
 	// Constructor and return the pose object
@@ -117,33 +106,20 @@ bool CartesianTrajectory::get_state(Eigen::Isometry3d         &pose,
                                     Eigen::Matrix<double,6,1> &acc,
                                     const double              &time)
 {
-	if(not this->isValid)
-	{
-		std::cerr << "[ERROR] [CARTESIAN TRAJECTORY] get_state(): "
-		          << "There was a problem during the construction of this object. "
-		          << "Could not get the state." << std::endl;
-		
-		return false;
-	}
-	else
-	{
-		double pos[3];                                                                      // Position vector
-		double rpy[3];                                                                      // Euler angles
-		
-		for(int i = 0; i < 3; i++)
-		{
-			pos[i] = this->spline[ i ].evaluatePoint(time, vel[i]  , acc[i]);
-			rpy[i] = this->spline[i+3].evaluatePoint(time, vel[i+3], acc[i+3]);
-		}
-		
-		// Now construct the pose/transform object
-		pose = Eigen::Translation3d(pos[0],pos[1],pos[2])                                   // Translation first
-		     * Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX())                          // Rotation about x
-                     * Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY())                          // Rotation about y
-                     * Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ());                         // Rotation about z
-		
-		return true;
-	}
-}
+	double pos[3];                                                                              // Position vector
+	double rpy[3];                                                                              // Euler angles
 
-#endif
+	for(int i = 0; i < 3; i++)
+	{
+		pos[i] = this->spline[ i ].evaluatePoint(time, vel[i]  , acc[i]);
+		rpy[i] = this->spline[i+3].evaluatePoint(time, vel[i+3], acc[i+3]);
+	}
+
+	// Now construct the pose/transform object
+	pose = Eigen::Translation3d(pos[0],pos[1],pos[2])                                           // Translation first
+	     * Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX())                                  // Rotation about x
+	     * Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY())                                  // Rotation about y
+	     * Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ());                                 // Rotation about z
+
+	return true;
+}
