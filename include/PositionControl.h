@@ -19,21 +19,21 @@ class PositionControl : public iCubBase
 			        const std::string              &robotModel)
 		:
 	        iCubBase(pathToURDF, jointList, portList, torsoPose, robotModel) {}
-/*		
-		// Inherited from the iCubBase class   
-		void compute_joint_limits(double &lower, double &upper, const int &i);
-			              
+
+		// NOTE: THESE ARE INHERITED FROM ICUBBASE
+		bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum);
+		
 		Eigen::Matrix<double,12,1> track_cartesian_trajectory(const double &time);
 		
 		Eigen::VectorXd track_joint_trajectory(const double &time);
-*/
-		
-		// Inherited from the yarp::PeriodicThread class
-		bool threadInit();
-		void threadRelease();
 		
 	protected:
 		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
+
+		// NOTE; THESE ARE INHERITED FROM PERIODICTHREAD
+		bool threadInit();
+		void threadRelease();
+//		void run() {} <--- TO BE DEFINED IN ANY CHILD CLASS
 };                                                                                                  // Semicolon needed after class declaration
 
 #endif
