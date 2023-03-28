@@ -46,6 +46,8 @@ class QPSolver
 		                              const Eigen::VectorXd &xMin,
 		                              const Eigen::VectorXd &xMax,
 		                              const Eigen::VectorXd &x0);
+		                              
+		Eigen::VectorXd last_solution() const { return this->lastSolution; }                // As it says on the label
 		                         
 	private:
 		// These are variables used by the interior point method:

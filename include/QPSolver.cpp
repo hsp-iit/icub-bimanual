@@ -1,4 +1,4 @@
-#include <QPSolver.h>
+#include <QPSolver.h>                                                                               // Declaration of functions
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                        Solve a generic QP problem min 0.5*x'*H*x + x'*f                       //
@@ -6,24 +6,25 @@
 Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
                                 const Eigen::VectorXd &f)
 {
+	
 	if(H.rows() != H.cols())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] solve(): "
-		          << "Expected a square matrix for the Hessian H, but it was "
-		          << H.rows() << "x" << H.cols() << "." << std::endl;
-		
-		return Eigen::VectorXd::Zero(f.size());
+		std::string message = "[ERROR] [QP SOLVER] solve(): "
+		                      "Expected a square matrix for the Hessian H but it was "
+		                    + std::to_string(H.rows()) + "x" + std::to_string(H.cols()) + ".";                      
+		               
+		throw std::runtime_error(message);
 	}
 	else if(H.rows() != f.size())
-	{
-		std::cerr << "[ERROR] [QPSOLVER] solve(): "
-		          << "Dimensions for the decision variable do not match! "
-		          << "The Hessian matrix H was " << H.rows() << "x" << H.cols() << " "
-		          << "and the f vector was " << f.size() << "x1." << std::endl;
-		
-		return Eigen::VectorXd::Zero(f.size());
+	{	
+		std::string message = "[ERROR] [QP SOLVER] solve(): "
+		                      "Dimensions of arguments do not match. "
+		                      "The Hessian H was " + std::to_string(H.rows()) + "x" + std::to_string(H.cols()) +
+		                      " and the f vector was " + std::to_string(f.size()) + "x1.";
+		                      
+		throw std::runtime_error(message);
 	}
-	else	return H.partialPivLu().solve(-f);                                                  // Too easy lol
+	else 	return H.partialPivLu().solve(-f);                                                  // Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -35,35 +36,35 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
                                 const Eigen::VectorXd &z,
                                 const Eigen::VectorXd &x0)
 {
-	// Check the inputs are sound
-	int n = x0.size();
-	if(H.rows()!= H.cols())
+	int dim = x0.size();                                                                        // Dimensions for the state vector
+	int numConstraints = B.rows();                                                              // As it says
+	
+	// Check that the inputs are sound
+	if(H.rows() != H.cols())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] solve(): "
-		          << "Hessian matrix H is not square! "
-		          << "Your input was " << H.rows() << "x" << H.cols() << "." << std::endl;
-		          
-		return x0;
+		std::string message = "[ERROR] [QP SOLVER] solve(): Expected a square matrix for the Hessian but it was "
+		                    + std::to_string(H.rows()) + "x" + std::to_string(H.cols()) + ".";
+		         	
+		throw std::runtime_error(message);
 	}
-	else if(f.size() != H.cols() or H.cols() != B.cols() or H.cols() != x0.size())
+	else if(f.size() != dim
+	     or H.rows() != dim
+	     or B.cols() != dim)
 	{
-		std::cerr << "[ERROR] [QPSOLVER] solve(): "
-		          << "Decision variable dimensions do not match! "
-		          << "The Hessian matrix H was " << H.rows() << "x" << H.cols() << ", "
-		          << "the f vector had " << f.size() << " elements, "
-		          << "the B matrix had " << B.cols() << " columns, "
-		          << "and the start point x0 had " << x0.size() << " elements." << std::endl;
-		          
-		return x0;
+		std::string message = "[ERROR] [QP SOLVER] solve(): Dimensions of arguments do not match. "
+		                      "The Hessian was " + std::to_string(H.rows()) + "x" + std::to_string(H.cols()) + ", "
+		                      "the f vector was " + std::to_string(f.size()) + "x1, and "
+		                      "the constraint matrix B had " + std::to_string(B.cols()) + " columns.";
+
+		throw std::runtime_error(message);
 	}
 	else if(B.rows() != z.size())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] solve(): "
-		          << "Constraint dimensions do not match! "
-		          << "The constraint matrix B had " << B.rows() << " rows, "
-		          << "and the constraint vector z had " << z.size() << " elements." << std::endl;
-		          
-		return x0;
+		std::string message = "[ERROR] [QP SOLVER] solve(): Dimensions for constraints do not match. "
+		                      "The constraint matrix B had " + std::to_string(B.rows()) + " rows, and "
+		                      "the constaint vector z had " + std::to_string(z.size()) + " elements.";	
+		
+		throw std::runtime_error(message);
 	}
 	else
 	{
@@ -82,17 +83,15 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 		// Local variables
 	
 		Eigen::MatrixXd I;                                                                  // Hessian matrix
-		Eigen::VectorXd g(n);                                                               // Gradient vector
-		Eigen::VectorXd dx = Eigen::VectorXd::Zero(n);                                      // Newton step = -I^-1*g
+		Eigen::VectorXd g(dim);                                                             // Gradient vector
+		Eigen::VectorXd dx = Eigen::VectorXd::Zero(dim);                                    // Newton step = -I^-1*g
 		Eigen::VectorXd x = x0;                                                             // Assign initial state variable
 		
-		float alpha;                                                                        // Scalar for Newton step
-		float beta  = this->beta0;                                                          // Shrinks barrier function
-		float u     = this->u0;                                                             // Scalar for barrier function
+		double alpha;                                                                        // Scalar for Newton step
+		double beta  = this->beta0;                                                          // Shrinks barrier function
+		double u     = this->u0;                                                             // Scalar for barrier function
 	
-		int numConstraints = B.rows();
-		
-		std::vector<float> d; d.resize(numConstraints);
+		std::vector<double> d; d.resize(numConstraints);
 		
 		// Do some pre-processing
 		std::vector<Eigen::VectorXd> bt(numConstraints);
@@ -102,7 +101,7 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 			bt[j]  = B.row(j).transpose();                                              // Row vectors of B transposed
 			btb[j] = bt[j]*bt[j].transpose();                                           // Outer product of row vectors
 		}
-
+		
 		// Run the interior point method
 		for(int i = 0; i < this->steps; i++)
 		{
@@ -117,42 +116,42 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 				
 				if(d[j] <= 0)
 				{
-					if(i == 0) throw std::invalid_argument("[ERROR] [QP SOLVER] solve(): Start point (x0) is outside the constraints!");
-			
+					if(i == 0) throw std::runtime_error("[ERROR] [QP SOLVER] solve(): Start point x0 is outside the constraints!");
+		
 					d[j] = 1e-03;                                               // Set a small, non-zero value
-					u *= 100;
+					u *= 100;                                                   // Increase the barrier function
 				}
 						
 				g += -(u/d[j])*bt[j];                                               // Add up gradient vector
 				I +=  (u/(d[j]*d[j]))*btb[j];                                       // Add up Hessian
-				
 			}
 			
 			g += H*x + f;                                                               // Finish summation of gradient vector
 
 			dx = I.partialPivLu().solve(-g);                                            // LU decomposition seems most stable
 			
-			// Shrink step size until within the constraint
-			alpha = this->alpha0;
+			// Ensure the next position is within the constraint
+			alpha = this->alpha0;                                                       // Reset the scalar for the step size
 			for(int j = 0; j < numConstraints; j++)
 			{
-				// d_i   = b'*x_i - z
-				// d_i+1 = b'*(x_i + alpha*dx_i) - z
-				//       = alpha*b'*dx > 0
+				double dotProduct = bt[j].dot(dx);                                   // Makes things a little easier
 				
-				double dotProd = bt[j].dot(dx);                                     // Makes calcs a little easier
-				
-				if(d[j] + alpha*dotProd < 0) alpha = (1e-04 - d[j]) / dotProd;      // Optimal step size to remain in constraint
+				if( d[j] + alpha*dotProduct < 0 )                                   // If constraint violated on next step...
+				{
+					double temp = (1e-04 - d[j])/dotProduct;                     // Compute optimal scalar to avoid constraint violation
+					
+					if(temp < alpha) alpha = temp;                              // If smaller, override
+				}
 			}
 
-			if(alpha*dx.norm() < this->tol) break;
+			if(alpha*dx.norm() < this->tol) break;                                      // Change in position is insignificant; must be optimal
 			
 			// Update values for next loop
 			x += alpha*dx;                                                              // Increment state
 			u *= beta;                                                                  // Decrease barrier function
 		}
-		
-		this->lastSolution = x;
+			
+		this->lastSolution = x;                                                             // Save this value for future use
 		
 		return x;
 	}
@@ -167,26 +166,34 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &y,
 {
 	if(A.rows() < A.cols())                                                                     // Redundant system, use other function
 	{
-		int n = A.cols();
-		return least_squares(Eigen::VectorXd::Zero(n),Eigen::MatrixXd::Identity(n,n),A,y);
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "The A matrix has more rows than columns ("
+		                      + std::to_string(A.rows()) + "x" + std::to_string(A.cols()) + "). "
+		                      "Did you mean to call the function for redundant least squares?";
+		
+		throw std::runtime_error(message);		                    		                   
 	}
 	if(W.rows() != W.cols())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Expected a square weighting matrix, "
-		          << "but it was " << W.rows() << "x" << W.cols() << std::endl;
-		          
-		return Eigen::VectorXd::Zero(A.cols());
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Expected a square weighting matrix W but it was "
+		                      + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ".";
+		                      
+		throw std::runtime_error(message);
 	}
 	else if(y.size() != W.rows() and A.rows() != y.size())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Dimensions do not match! "
-		          << "The y vector had " << y.size() << " elements, "
-		          << "the A matrix had " << A.rows() << " rows, "
-		          << "and the W matrix was " << W.rows() << "x" << W.cols() << std::endl;
-		          
-		return Eigen::VectorXd::Zero(A.cols());
+		auto size = std::to_string(y.size());
+		auto rows = std::to_string(A.rows());
+		auto cols = std::to_string(W.cols());
+		
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Dimensions of input arguments do not match. "
+		                      "The y vector was " + std::to_string(y.size()) + "x1, "
+		                      "the A matrix had " + std::to_string(A.rows()) + " rows, and "
+		                      "the weighting matrix W was " + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ".";
+
+		throw std::runtime_error(message);	
 	}
 	else	return (A.transpose()*W*A).partialPivLu().solve(A.transpose()*W*y);                 // x = (A'*W*A)^-1*A'*W*y
 }
@@ -202,39 +209,41 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &y,
                                         const Eigen::VectorXd &x0)
 {
 	if(W.rows() != W.cols())
-	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Expected the weighting matrix W to be square, "
-		          << "but it was " << W.rows() << "x" << W.cols() << std::endl;
-		          
-		return x0;
+	{	
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Expected a square weighting matrix W but it was "
+		                    + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ".";
+		
+		throw std::runtime_error(message);
 	}
 	else if(y.size() != W.rows() and A.rows() != y.size())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Dimensions do not match! "
-		          << "The y vector had " << y.size() << " elements, "
-		          << "the A matrix had " << A.rows() << " rows, "
-		          << "and the W matrix was " << W.rows() << "x" << W.cols() << std::endl;
-		          
-		return x0;
+		
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Dimensions of input arguments do not match. "
+		                      "The y vector was " + std::to_string(y.size()) + "x1, "
+		                      "the A matrix had " + std::to_string(A.rows()) + " rows, and "
+		                      "the weighting matrix W was " + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ".";
+	
+		throw std::runtime_error(message);
 	}
 	else if(A.cols() != xMin.size() or xMin.size() != xMax.size() or xMax.size() != x0.size())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Dimensions for the decision variable to no match! "
-		          << "The A matrix had " << A.cols() << " columns, "
-		          << "the xMin vector had " << xMin.size() << " elements, "
-		          << "the xMax vector had " << xMax.size() << " elements, "
-		          << "and the start point x0 had " << x0.size() << " elements." << std::endl;
-		
-		return x0;
+
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Dimensions for the decision variable do not match. "
+		                      "The A matrix had " + std::to_string(A.cols()) + " columns, "
+		                      "the xMin vector had " + std::to_string(xMin.size()) + " elements, "
+		                      "the xMax vector had " + std::to_string(xMax.size()) + " elements, and "
+		                      "the start point x0 had " + std::to_string(x0.size()) + " elements.";
+	
+		throw std::runtime_error(message);
 	}
 	else
 	{
 		int n = x0.size();
 		
-		// Set up constraint matrices in standard form Bx >= z where:
+		// Set up constraint matrices in standard form Bx >= c where:
 		// B*x = [ -I ] >= [ -xMax ]
 		//       [  I ]    [  xMin ]
 		Eigen::MatrixXd B(2*n,n);
@@ -261,30 +270,30 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
 {
 	if(W.rows() != W.cols())
 	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Expected a square weighting matrix W, but it was " 
-		          << W.rows() << "x" << W.cols() << "." << std::endl;
-		          
-		return Eigen::VectorXd::Zero(xd.size());
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Expected the weighting matrix to be square but it was "
+		                    + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ".";
+		
+		throw std::runtime_error(message);
 	}
 	else if(xd.size() != W.rows() or W.cols() != A.cols())
-	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Dimensions for the decision variable do not match! "
-                          << "The desired vector xd had " << xd.size() << " elements, "
-                          << "the weighting matrix W was " << W.rows() << "x" << W.cols() << ", "
-                          << "and the constraint matrix A had " << A.cols() << " columns." << std::endl;
-                
-                return Eigen::VectorXd::Zero(xd.size());
+	{	
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Dimensions for the decision variable do not match. "
+		                      "The desired vector xd had " + std::to_string(xd.size()) + " elements, "
+		                      "the weighting matrix was " + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ", and "
+		                      "the constraint matrix A had " + std::to_string(A.cols()) + " columns.";
+		
+		throw std::runtime_error(message);
         }
         else if(y.size() != A.rows())
-        {
-        	std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-        	          << "Dimensions for the equality constraint do not match! "
-        	          << "The y vector had " << y.size() << " elements, "
-        	          << "and the A matrix had " << A.rows() << " rows." << std::endl;
-        	
-        	return Eigen::VectorXd::Zero(xd.size());
+        {    	
+        	std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+        	                      "Dimensions for the equality constraint do not match. "
+        	                      "The y vector had " + std::to_string(y.size()) + " elements, and "
+        	                      "the constraint matrix had " + std::to_string(A.rows()) + " rows.";
+        	                      
+        	throw std::runtime_error(message);
         }
         else
         {   	
@@ -299,8 +308,8 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
 		int m = A.rows();
 		int n = A.cols();
 		
-		Eigen::MatrixXd H = Eigen::MatrixXd::Zero(m+n,m+n);
-//		H.block(0,0,m,m) = Eigen::MatrixXd::Zero(m,n);
+		Eigen::MatrixXd H(m+n,m+n);
+		H.block(0,0,m,m).setZero();
 		H.block(0,m,m,n) = A;
 		H.block(m,0,n,m) = A.transpose();
 		H.block(m,m,n,n) = W;
@@ -308,6 +317,9 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
 		Eigen::VectorXd f(m+n);
 		f.head(m) = y;
 		f.tail(n) = W*xd;
+		
+		// NOTE: We could be smarter here and skip solving the Lagrange multipliers using
+		// QR decomposition...
 		
 		return (H.partialPivLu().solve(f)).tail(n);
 	}
@@ -324,44 +336,47 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
                                         const Eigen::VectorXd &xMax,
                                         const Eigen::VectorXd &x0)
 {
+	unsigned int m = y.size();
+	unsigned int n = x0.size();
+	
 	if(W.rows() != W.cols())
-	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Expected a weighting matrix W, but it was " 
-		          << W.rows() << "x" << W.cols() << "." << std::endl;
-		          
-		return x0;
+	{	
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Expected the weighting matrix to be square but it was "
+		                    + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + ".";
+		
+		throw std::runtime_error(message);
 	}
-	else if(xd.size() != W.rows() or W.cols() != A.cols() or A.cols() != x0.size() 
-	     or xMin.size() != x0.size() or xMax.size() != x0.size())
-	{
-		std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-		          << "Dimensions for the decision variable do not match! "
-                          << "The desired vector xd had " << xd.size() << " elements, "
-                          << "the weighting matrix W was " << W.rows() << "x" << W.cols() << ", "
-                          << "the constraint matrix A had " << A.cols() << " columns, "
-                          << "the xMin vector had " << xMin.size() << " elements, "
-                          << "the xMax vector had " << xMax.size() << " elements, "
-                          << "and the start point x0 had " << x0.size() << " columns." << std::endl;
-                
-                return x0;
-        }
-        else if(y.size() != A.rows())
-        {
-        	std::cerr << "[ERROR] [QPSOLVER] least_squares(): "
-        	          << "Dimensions for the equality constraint do not match! "
-        	          << "The y vector had " << y.size() << " elements, "
-        	          << "and the A matrix had " << A.rows() << " rows." << std::endl;
+	else if(xd.size()   != n
+	     or W.rows()    != n
+	     or A.cols()    != n
+	     or xMin.size() != n
+	     or xMax.size() != n)
+	{	
+		std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+		                      "Dimensions for the decision variable do not match. "
+		                      "The desired vector xd had " + std::to_string(xd.size()) + " elements, "
+		                      "the weighting matrix W had " + std::to_string(W.rows()) + "x" + std::to_string(W.cols()) + " elements, "
+		                      "the constraint matrix A had " + std::to_string(A.cols()) + " columns, "
+		                      "the xMin vector had " + std::to_string(xMin.size()) + " elements, "
+		                      "the xMax vector had " + std::to_string(xMax.size()) + " elements, and "
+		                      "the start point x0 had " + std::to_string(n) + " elements.";
+		
+		throw std::runtime_error(message);
+	}
+        else if(A.rows() != m)
+        {	
+        	std::string message = "[ERROR] [QP SOLVER] least_squares(): "
+        	                      "Dimensions for the equality constraint do not match. "
+        	                      "The y vector had " + std::to_string(y.size()) + " elements, and "
+        	                      "the A matrix had " + std::to_string(A.rows()) + " rows.";
         	
-        	return x0;
+        	throw std::runtime_error(message);
         }
 	else
 	{
 		// Convert to standard form 0.5*x'*H*x + x'*f subject to B*x >= z
 		// where "x" is now [lambda' x' ]'
-		
-		unsigned int m = A.rows();
-		unsigned int n = A.cols();
 		
 		// H = [ 0  A ]
 		//     [ A' W ]
@@ -391,11 +406,9 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
 		f.tail(n) = -W*xd;
 		
 		Eigen::VectorXd startPoint(m+n);
-		startPoint.head(m) = (A*W.partialPivLu().inverse()*A.transpose()).partialPivLu().solve(A*xd - y); // Lagrange multiplier
+		startPoint.head(m) = (A*W.partialPivLu().inverse()*A.transpose()).partialPivLu().solve(A*xd - y);
 		startPoint.tail(n) = x0;
 		
 		return (solve(H,f,B,z,startPoint)).tail(n);                                         // Convert to standard form and solve
 	}
-}
-
-#endif
+}                  
