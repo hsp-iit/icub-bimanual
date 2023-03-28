@@ -7,6 +7,7 @@
 #ifndef JOINTINTERFACE_H_
 #define JOINTINTERFACE_H_
 
+#include <Eigen/Core>                                                                               // Eigen::VectorXd
 #include <iostream>                                                                                 // std::cerr, std::cout
 #include <math.h>                                                                                   // M_PI
 #include <string>                                                                                   // std::string
@@ -18,30 +19,25 @@
 class JointInterface
 {
 	public:		
-		JointInterface(const std::vector<std::string> &jointList,
+		JointInterface(const std::vector<std::string> &jointList,                           // Constructor
 		               const std::vector<std::string> &portList);
 		
-		bool read_encoders();                                                               // As it says on the label
+		bool read_encoders(Eigen::VectorXd &pos, Eigen::VectorXd &vel);                     // Read the positions and velocities
 		
-		bool send_joint_commands(const std::vector<double> &commands);
-		
-		std::vector<double> joint_positions() const  { return this->pos; }
-		
-		std::vector<double> joint_velocities() const { return this->vel; }
+		bool send_joint_commands(const Eigen::VectorXd &commands);
 		
 		void close();                                                                       // Close the device drivers & stop the robot
 		
         protected:
-        
+     
 		unsigned int numJoints;                                                             // Number of joints being controlled
 		
 		std::vector<std::array<double,2>> positionLimit;                                    // Upper and lower bounds on joint position
+		
 		std::vector<double>               velocityLimit;                                    // Absolute joint velocity
 		
 	private:
 		
-		std::vector<double> pos, vel;
-			
 	   	// These interface with the hardware on the robot itself
 		yarp::dev::IControlLimits*   limits;                                                // Joint limits?
 		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor

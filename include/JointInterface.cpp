@@ -8,12 +8,10 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
                                :
                                numJoints(jointList.size())                                          // Number of joints equal to size of list
 {
-	// Resize vectors based on number of joints in the model
+	// Resize std::vector objects based on number of joints in the model
 	this->positionLimit.resize(this->numJoints);
 	this->velocityLimit.resize(this->numJoints);
-	this->pos.resize(this->numJoints);
-	this->vel.resize(this->numJoints);
-	
+
 	////////////////////////// I copied this code from elsewhere ///////////////////////////////
 
 	// Open up device drivers
@@ -74,13 +72,6 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 					}
 				}
 				
-				// Success! We made it to to the end. Assign initial values
-				for(int i = 0; i < this->numJoints; i++)
-				{
-					this->pos[i] = temp[i]*M_PI/180.0;
-					this->vel[i] = 0.0;
-				}
-				
 				std::cout << "[INFO] [JOINT INTERFACE] Successfully configured the joint motors.\n";
 			}
 		}
@@ -88,34 +79,50 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                         Get new joint state information from the encoders                      //
+ //                    Read the joint positions and velocities from the encoders                   //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool JointInterface::read_encoders()
+bool JointInterface::read_encoders(Eigen::VectorXd &pos, Eigen::VectorXd &vel)
 {
-	bool success = true;
-	
-	for(int i = 0; i < this->numJoints; i++)
+	if(pos.size() != this->numJoints or vel.size() != this->numJoints)
 	{
-		success &= this->encoders->getEncoder     (i, &this->pos[i]);                       // Read the position
-		success &= this->encoders->getEncoderSpeed(i, &this->vel[i]);                       // Read the velocity
+		std::cerr << "[ERROR] [JOINT INTERFACE] read_encoders(): "
+		          << "There are " << this->numJoints << " joints, but "
+		          << "the position argument had " << pos.size() << " elements and "
+		          << "the velocity argument had " << vel.size() << " elements.\n";
+
+		return false;
+	}
+	else
+	{
+		bool success = true;
+		
+		for(int i = 0; i < this->numJoints; i++)
+		{
+			success &= this->encoders->getEncoder     (i, &pos(i));                     // Read joint positions
+			success &= this->encoders->getEncoderSpeed(i, &vel(i));                     // Read joint velocities
+		}
 		
 		if(success)
 		{
-			this->pos[i] *= M_PI/180.0;                                                 // Convert to radians
-			this->vel[i] *= M_PI/180.0;
+			pos *= M_PI/180.0;                                                          // Convert to radians
+			vel *= M_PI/180.0;                                                          // Convert to radians
+			
+			return true;
+		}
+		else
+		{
+			std::cerr << "[ERROR] [JOINT INTERFACE] read_encoders(): "
+			             "Could not obtain new encoder values.\n";
+			
+			return false;
 		}
 	}
-	
-	if(not success) std::cerr << "[ERROR] [JOINT INTERFACE] read_encoders(): "
-		                  << "Could not obtain new encoder values.\n";
-		        
-	return success;
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                 Send commands to the joint motors                              //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool JointInterface::send_joint_commands(const std::vector<double> &commands)
+bool JointInterface::send_joint_commands(const Eigen::VectorXd &commands)
 {
 	if(commands.size() != this->numJoints)
 	{
