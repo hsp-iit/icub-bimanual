@@ -44,6 +44,8 @@ class iCubBase : public QPSolver,
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 		                       const std::vector<double> &times);                           // Move the joints through several positions
 		                       
+		bool set_joint_gains(const double &proportional, const double &derivative);
+		                       
 		// Cartesian control functions
 		bool is_grasping() const { return this->isGrasping; }                               // Check if grasp constraint is active
 		
@@ -61,6 +63,8 @@ class iCubBase : public QPSolver,
 		               
 		Eigen::Matrix<double,6,1> pose_error(const Eigen::Isometry3d &desired,
 		                                     const Eigen::Isometry3d &actual);
+		                                     
+		bool set_cartesian_gains(const double &proportional, const double &derivative);
 		               
 		// Grasp control functions
 		bool grasp_object(const Payload &_payload);                                         // As it says on the label

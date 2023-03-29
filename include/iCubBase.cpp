@@ -510,6 +510,50 @@ Eigen::Matrix<double,6,1> iCubBase::pose_error(const Eigen::Isometry3d &desired,
 	
 	return error;
 }
+ 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                 Set the Cartesian gains                                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_cartesian_gains(const double &proportional, const double &derivative)
+{
+	if(proportional < 0 or derivative < 0)
+	{
+		std::cerr << "[ERROR] [ICUB BASE] set_cartesian_gains(): "
+		          << "Gains must be positive, but your inputs were " << proportional
+		          << " and " << derivative << ".\n";
+		
+		return false;
+	}
+	else
+	{
+		this->K = proportional*this->gainTemplate;
+		this->D = derivative*this->gainTemplate;
+
+		return true;
+	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                    Set the joint gains                                         //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_joint_gains(const double &proportional, const double &derivative)
+{
+	if(proportional < 0 or derivative < 0)
+	{
+		std::cerr << "[ERROR] [ICUB BASE] set_joint_gains(): "
+		          << "Gains must be positive, but your inputs were " << proportional
+		          << " and " << derivative << ".\n";
+		          
+		return false;
+	}
+	else
+	{
+		this->kp = proportional;
+		this->kd = derivative;
+		
+		return true;
+	}
+}
 
 /*
 iCubBase::iCubBase(const std::string              &pathToURDF,
