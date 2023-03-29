@@ -1,5 +1,18 @@
 #include <QPSolver.h>                                                                               // Declaration of functions
 
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                Get the last solution for re-use                                 //
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::VectorXd QPSolver::last_solution()
+{
+	if(lastSolutionExists) return this->lastSolution;
+	else
+	{
+		throw std::runtime_error("[ERROR] [QPSOLVER] last_solution(): Interior point method has not been called yet. No solution exists.");
+	}
+}
+
+
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                        Solve a generic QP problem min 0.5*x'*H*x + x'*f                       //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -152,6 +165,7 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 		}
 			
 		this->lastSolution = x;                                                             // Save this value for future use
+		this->lastSolutionExists = true;                                                    // Flag that the interior point method has been run
 		
 		return x;
 	}

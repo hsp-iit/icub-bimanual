@@ -48,6 +48,12 @@ class QPSolver
 		                              const Eigen::VectorXd &x0);
 		                              
 		Eigen::VectorXd last_solution() const { return this->lastSolution; }                // As it says on the label
+		
+		void clear_last_solution() { this->lastSolutionExists = false; }                    // Clear the last solution
+		
+		bool last_solution_exists() const { return this->lastSolutionExists; }
+		
+		Eigen::VectorXd last_solution();
 		                         
 	private:
 		// These are variables used by the interior point method:
@@ -57,6 +63,8 @@ class QPSolver
 		float tol       = 1e-2;                                                             // Tolerance on step size
 		float u0        = 100;                                                              // Scalar on barrier function
 		int   steps     = 20;                                                               // No. of steps to run interior point method
+		
+		bool lastSolutionExists = false;
 		
 		Eigen::VectorXd lastSolution;
 		                         
