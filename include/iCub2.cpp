@@ -77,19 +77,62 @@ void iCub2::run()
 		if(this->controlSpace == joint)
 		{
 			Eigen::VectorXd q_d(this->numJoints);                                       // Desired joint positions
+			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);   // Bounds on the solution
 			
 			// Get the desired position from the joint trajectory generator
+			// and set the bounds on the solution
 			for(int i = 0; i < this->numJoints; i++)
 			{
 				q_d(i) = this->jointTrajectory[i].evaluatePoint(elapsedTime);       // Desired position for the given time
 				
-				// Position limits
-				double lower = this->positionLimit[i][0];
-				double upper = this->positionLimit[i][1];
-				 
+				// Get the limits on the solution
+				lowerBound(i) = this->positionLimit[i][0];
+				upperBound(i) = this->positionLimit[i][0];
+				
 				// Convert to constraint vector for the QP solver
-				this->z(i)                 = -upper;
-				this->z(i+this->numJoints) =  lower;
+				this->z(i)                 = -upperBound(i);
+				this->z(i+this->numJoints) =  lowerBound(i);
+				
+			}
+			
+			this->z.tail(10) = -this->b;                                                // For the shoulder constraints
+				
+			// Get the start point for the QP solver
+			Eigen::VectorXd startPoint(this->numJoints);
+			if(last_solution_exists())
+			{
+				try
+				{
+					startPoint = last_solution().tail(this->numJoints);         // Remove Lagrange multipliers
+					
+					// Ensure within limits since they may have changed
+					for(int i = 0; i < this->numJoints; i++)
+					{
+						     if(startPoint(i) > upperBound(i)) startPoint(i) = upperBound(i) - 1e-03;
+						else if(startPoint(i) < lowerBound(i)) startPoint(i) = lowerBound(i) + 1e-03;
+					}
+				}
+				catch(const std::exception &exception)
+				{
+					std::cout << exception.what() << std::endl;
+				
+					startPoint = 0.5*(lowerBound + upperBound);                 // Start in the middle of the bounds
+				}			
+			}
+			else startPoint = 0.5*(lowerBound + upperBound);                            // Start in the middle
+			
+			// Now try to solve the QP problem
+			try
+			{
+				qRef = solve(Eigen::MatrixXd::Identity(this->numJoints,this->numJoints), // H
+					    -q_d,                                                        // f
+					     this->B.block(0,12,10+2*this->numJoints,this->numJoints),   // Remove component for Lagrange multipliers in Cartesian mode
+					     this->z,                                                    // Constraint vector
+					     startPoint);                                                // x0
+			}
+			catch(const std::exception &exception)
+			{
+				std::cout << exception.what() << std::endl;                         // Inform the user
 			}
 		}
 		else // this->controlSpace == cartesian
