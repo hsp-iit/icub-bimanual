@@ -14,6 +14,7 @@ bool PositionControl::threadInit()
 	else
 	{
 		// Reset values
+		clear_last_solution();                                                              // In the QP solver
 		this->isFinished = false;                                                           // New action started
 		this->qRef = this->q;                                                               // Start from current joint position
 		this->startTime = yarp::os::Time::now();                                            // Used to time the control loop
