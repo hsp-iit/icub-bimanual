@@ -2,9 +2,9 @@
  //                          Two-handed grasping demo with the iCub2.5                             //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-#include <iCub2.h>
-#include <yarp/os/RpcServer.h>
+#include <iCub2.h>                                                                                  // Custom class for controlling iCub2
+#include <yarp/os/Property.h>                                                                       // Load configuration files
+#include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
 
 /*
 double long_time  = 4.0;
@@ -23,41 +23,55 @@ std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 int main(int argc, char* argv[])
 {
 	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
-	if(argc != 3)
+	if(argc != 4)
 	{
 		std::cerr << "[ERROR] [ICUB2 GRASP DEMO] Port name and path to URDF are required. "
-		          << "Usage: ./icub2_grasp_demo /portName /path/to/model.urdf" << std::endl;
+		          << "Usage: ./icub2_grasp_demo /portName /path/to/model.urdf /path/to/config.ini" << std::endl;
 		
 		return 1;                                                                           // Close with error
 	}
-	else
+
+	std::string portName     = argv[1];                                                         // Get the port names
+	std::string pathToURDF   = argv[2];                                                         // Get the file path
+	std::string pathToConfig = argv[3];                                                         // Path to the configuration file
+	
+	// Generate port list prefixes
+	std::vector<std::string> portList;
+	portList.push_back(portName + "/torso");
+	portList.push_back(portName + "/left_arm");
+	portList.push_back(portName + "/right_arm");
+	
+	yarp::os::Property parameter; parameter.fromConfigFile(pathToConfig);                       // Load the properties from the config file
+	
+	yarp::os::Bottle bottle; bottle.add(parameter.find("list"));
+	std::cout << "This bottle has " << bottle.size() << " element(s).\n";
+	
+	try // To start up the robot
 	{
-		std::string portName   = argv[1];                                                   // Get the port names
-		std::string pathToURDF = argv[2];                                                   // Get the file path
+		iCub2 robot(pathToURDF, jointList, portList);                                       // Start up the robot
 		
-		// Generate port list prefixes
-		std::vector<std::string> portList;
-		portList.push_back(portName + "/torso");
-		portList.push_back(portName + "/left_arm");
-		portList.push_back(portName + "/right_arm");
+		// Set the Cartesian gains
+		double kp = parameter.findGroup("CARTESIAN").find("proportional").asFloat64();
+		double kd = parameter.findGroup("CARTESIAN").find("derivative").asFloat64();	
+		if(not robot.set_cartesian_gains(kp,kd)) return 1;
 		
-		try
-		{
-			iCub2 robot(pathToURDF, jointList, portList);
-			
-			robot.close();
-			
-			return 0;                                                                   // No problems with main
-		}
-		catch(std::exception &exception)
-		{
-			std::cerr << "[ERROR] [ICUB2 GRASP DEMO] There was a problem with initialization. "
-			          << "See the error message below." << std::endl;
-			          
-			std::cout << exception.what() << std::endl;                                 // Inform the user
-			
-			return 1;                                                                   // Close with error
-		}
+		// Set the joint gains
+		kp = parameter.findGroup("JOINT").find("proportional").asFloat64();
+		kd = parameter.findGroup("JOINT").find("derivative").asFloat64();	
+		if(not robot.set_joint_gains(kp,kd)) return 1;
+		
+		robot.close();
+		
+		return 0;                                                                           // No problems with main
+	}
+	catch(std::exception &exception)
+	{
+		std::cerr << "[ERROR] [ICUB2 GRASP DEMO] There was a problem with initialization. "
+		          << "See the error message below." << std::endl;
+		          
+		std::cout << exception.what() << std::endl;                                         // Inform the user
+		
+		return 1;                                                                           // Close with error
 	}
 }
 /*
