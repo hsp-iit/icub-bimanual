@@ -36,9 +36,21 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 			Eigen::Vector3d translation = poses[i].translation();
 			for(int j = 0; j < 3; j++) points[j][i] = translation[j];
 			
+			// Extract the angle & axis from the SO(3) matrix
+			Eigen::Matrix3d R = poses[i].rotation();                                    // Get the rotation matrix
+			double trace = R(0,0) + R(1,1) + R(2,2);                                    // Get the trace
+			double angle = acos((trace - 1)/2);                                         // Compute the angle
+			if(angle > M_PI) angle = 2*M_PI - angle;                                    // Ensure the range is [-3.14159, 3.14159]
+			
+			// Orientation component = angle*axis
+			points[3][i] = angle*(R(2,1)-R(1,2));
+			points[4][i] = angle*(R(0,2)-R(2,0));
+			points[5][i] = angle*(R(1,0)-R(0,1));
+			
+			
 			// Extract the orientation as Euler anggles
 			// NOTE: This is not ideal due to gimbal lock...
-			
+			/*
 			Eigen::Matrix<double,3,3> R = poses[i].rotation();                          // SO(3) matrix
 		 	double roll, pitch, yaw;
 		 	
@@ -58,6 +70,7 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 		 	points[3][i] = roll;
 		 	points[4][i] = pitch;
 		 	points[5][i] = yaw;
+		 	*/
 		}
 		 
 		// Now insert them in to the iDynTree::CubicSpline object
@@ -83,19 +96,22 @@ Eigen::Isometry3d CartesianTrajectory::get_pose(const double &time)
 	// is fully constructed...
 	
 	double pos[3];                                                                              // Position vector
-	double rpy[3];                                                                              // Euler angles
+	double rot[3];                                                                              // Angle*axis vector
 	
 	for(int i = 0; i < 3; i++)
 	{
 		pos[i] = this->spline[ i ].evaluatePoint(time);
-		rpy[i] = this->spline[i+3].evaluatePoint(time);
+		rot[i] = this->spline[i+3].evaluatePoint(time);
 	}
 	
-	// Constructor and return the pose object
-	return  Eigen::Translation3d(pos[0],pos[1],pos[2])                                          // Translation first
-	      * Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX())                                 // Rotation about x
-              * Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY())                                 // Rotation about y
-              * Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ());                                // Rotation about z
+	double angle = sqrt(rot[0]*rot[0] + rot[1]*rot[1] + rot[2]*rot[2]);                         // Norm of vector
+	
+	Eigen::Vector3d axis;
+	
+	if(angle == 0) axis = Eigen::Vector3d::UnitX();                                             // Axis is trivial
+	else           axis = Eigen::Vector3d(rot[0]/angle,rot[1]/angle,rot[2]/angle);
+	
+	return Eigen::Translation3d(pos[0],pos[1],pos[2])*Eigen::AngleAxisd(angle,axis);
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,19 +123,22 @@ bool CartesianTrajectory::get_state(Eigen::Isometry3d         &pose,
                                     const double              &time)
 {
 	double pos[3];                                                                              // Position vector
-	double rpy[3];                                                                              // Euler angles
+	double rot[3];                                                                              // Angle*axis
 
 	for(int i = 0; i < 3; i++)
 	{
 		pos[i] = this->spline[ i ].evaluatePoint(time, vel[i]  , acc[i]);
-		rpy[i] = this->spline[i+3].evaluatePoint(time, vel[i+3], acc[i+3]);
+		rot[i] = this->spline[i+3].evaluatePoint(time, vel[i+3], acc[i+3]);
 	}
 
-	// Now construct the pose/transform object
-	pose = Eigen::Translation3d(pos[0],pos[1],pos[2])                                           // Translation first
-	     * Eigen::AngleAxisd(rpy[0], Eigen::Vector3d::UnitX())                                  // Rotation about x
-	     * Eigen::AngleAxisd(rpy[1], Eigen::Vector3d::UnitY())                                  // Rotation about y
-	     * Eigen::AngleAxisd(rpy[2], Eigen::Vector3d::UnitZ());                                 // Rotation about z
+	double angle = sqrt(rot[0]*rot[0] + rot[1]*rot[1] + rot[2]*rot[2]);                         // Norm of vector
+	
+	Eigen::Vector3d axis;
+	
+	if(angle == 0) axis = Eigen::Vector3d::UnitX();                                             // Axis is trivial
+	else           axis = Eigen::Vector3d(rot[0]/angle,rot[1]/angle,rot[2]/angle);
+	
+	pose = Eigen::Translation3d(pos[0],pos[1],pos[2])*Eigen::AngleAxisd(angle,axis);
 
 	return true;
 }
