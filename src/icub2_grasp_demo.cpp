@@ -5,27 +5,53 @@
 #include <iCub2.h>                                                                                  // Custom class for controlling iCub2
 #include <yarp/os/Property.h>                                                                       // Load configuration files
 #include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
+		       
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //               Convert a list of floating point numbers to an Eigen::Vector object              //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::VectorXd vector_from_bottle(const yarp::os::Bottle *bottle)
+{
+	Eigen::VectorXd vector(bottle->size());                                                     // Value to be returned
+	
+	for(int i = 0; i < bottle->size(); i++)
+	{
+		yarp::os::Value value = bottle->get(i);                                            // Get the ith element
+		
+		if(value.isFloat64()) vector(i) = value.asFloat64();                                // If it is a double, add to the vector
+		else throw std::invalid_argument("[ERROR] vector_from_bottle(): The list contains a non-floating point element."); // Failure
+	}
+	
+	return vector;
+}
 
-/*
-double long_time  = 4.0;
-double short_time = 2.0;
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                     Convert a list of strings to a std::vector<std:string>>                    //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+std::vector<std::string> string_from_bottle(const yarp::os::Bottle *bottle)
+{
+	std::vector<std::string> list;
+	
+	for(int i = 0; i < bottle->size(); i++)
+	{
+		yarp::os::Value value = bottle->get(i);                                             // Get the ith element
+		
+		if(value.isString()) list.push_back(value.asString());
+		else throw std::invalid_argument("[ERROR] string_from_bottle(): The list contains a non-string element.");
+	}
+	
+	return list;
+}
 
-double mass = 0.1;
-Eigen::Matrix<double,3,3> inertia = (Eigen::MatrixXd(3,3) << 1e-06,   0.0,   0.0,
-                                                               0.0, 1e-06,   0.0,
-                                                               0.0,   0.0, 1e-06).finished();
-*/
-std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
-			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
-		        "r_shoulder_pitch", "r_shoulder_roll", "r_shoulder_yaw", "r_elbow", "r_wrist_prosup", "r_wrist_pitch", "r_wrist_yaw"};
-
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                             MAIN                                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
 {
 	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
 	if(argc != 4)
 	{
 		std::cerr << "[ERROR] [ICUB2 GRASP DEMO] Port name and path to URDF are required. "
-		          << "Usage: ./icub2_grasp_demo /portName /path/to/model.urdf /path/to/config.ini" << std::endl;
+		          << "Usage: ./icub2_grasp_demo /portName /path/to/model.urdf /path/to/config.ini\n";
 		
 		return 1;                                                                           // Close with error
 	}
@@ -41,40 +67,23 @@ int main(int argc, char* argv[])
 	portList.push_back(portName + "/right_arm");
 	
 	yarp::os::Property parameter; parameter.fromConfigFile(pathToConfig);                       // Load the properties from the config file
-	
-	yarp::os::Bottle* bottle = parameter.find("list").asList();
-	
-	if(bottle == nullptr) throw std::runtime_error("Can't find the list.");
-	else
-	{
-		std::cout << "Found the list! Here it is:\n";
 		
-		Eigen::VectorXd v(bottle->size());
-		
-		for(int i = 0; i < bottle->size(); i++)
-		{
-			if(bottle->get(i).isFloat64())
-			{
-				v(i) = bottle->get(i).asFloat64();
-			}
-			else throw std::runtime_error("The list contains a non-floating point number.");
-		}
-		
-		std::cout << v << std::endl;
-	}
-	
 	try // To start up the robot
 	{
+		// Get the joint list
+		yarp::os::Bottle* bottle; bottle = parameter.find("joint_list").asList();
+		std::vector<std::string> jointList = string_from_bottle(bottle);
+		
 		iCub2 robot(pathToURDF, jointList, portList);                                       // Start up the robot
 		
 		// Set the Cartesian gains
-		double kp = parameter.findGroup("CARTESIAN").find("proportional").asFloat64();
-		double kd = parameter.findGroup("CARTESIAN").find("derivative").asFloat64();	
+		double kp = parameter.findGroup("CARTESIAN_GAINS").find("proportional").asFloat64();
+		double kd = parameter.findGroup("CARTESIAN_GAINS").find("derivative").asFloat64();	
 		if(not robot.set_cartesian_gains(kp,kd)) return 1;
 		
 		// Set the joint gains
-		kp = parameter.findGroup("JOINT").find("proportional").asFloat64();
-		kd = parameter.findGroup("JOINT").find("derivative").asFloat64();	
+		kp = parameter.findGroup("JOINT_GAINS").find("proportional").asFloat64();
+		kd = parameter.findGroup("JOINT_GAINS").find("derivative").asFloat64();	
 		if(not robot.set_joint_gains(kp,kd)) return 1;
 		
 		robot.close();
@@ -91,6 +100,7 @@ int main(int argc, char* argv[])
 		return 1;                                                                           // Close with error
 	}
 }
+
 /*
 int main(int argc, char *argv[])
 {
