@@ -19,7 +19,6 @@ std::vector<std::string> jointList = {"torso_pitch", "torso_roll", "torso_yaw",
 			"l_shoulder_pitch", "l_shoulder_roll", "l_shoulder_yaw", "l_elbow", "l_wrist_prosup", "l_wrist_pitch", "l_wrist_yaw",
 		        "r_shoulder_pitch", "r_shoulder_roll", "r_shoulder_yaw", "r_elbow", "r_wrist_prosup", "r_wrist_pitch", "r_wrist_yaw"};
 
-
 int main(int argc, char* argv[])
 {
 	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
@@ -43,8 +42,26 @@ int main(int argc, char* argv[])
 	
 	yarp::os::Property parameter; parameter.fromConfigFile(pathToConfig);                       // Load the properties from the config file
 	
-	yarp::os::Bottle bottle; bottle.add(parameter.find("list"));
-	std::cout << "This bottle has " << bottle.size() << " element(s).\n";
+	yarp::os::Bottle* bottle = parameter.find("list").asList();
+	
+	if(bottle == nullptr) throw std::runtime_error("Can't find the list.");
+	else
+	{
+		std::cout << "Found the list! Here it is:\n";
+		
+		Eigen::VectorXd v(bottle->size());
+		
+		for(int i = 0; i < bottle->size(); i++)
+		{
+			if(bottle->get(i).isFloat64())
+			{
+				v(i) = bottle->get(i).asFloat64();
+			}
+			else throw std::runtime_error("The list contains a non-floating point number.");
+		}
+		
+		std::cout << v << std::endl;
+	}
 	
 	try // To start up the robot
 	{
