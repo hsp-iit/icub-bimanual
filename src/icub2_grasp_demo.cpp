@@ -3,9 +3,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <iCub2.h>                                                                                  // Custom class for controlling iCub2
+#include <map>                                                                                      // std::map
 #include <yarp/os/Property.h>                                                                       // Load configuration files
 #include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
-		       
+
+std::map<std::string, Eigen::VectorXd> configurationMap;
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //               Convert a list of floating point numbers to an Eigen::Vector object              //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -74,6 +77,29 @@ int main(int argc, char* argv[])
 		yarp::os::Bottle* bottle; bottle = parameter.find("joint_list").asList();
 		std::vector<std::string> jointList = string_from_bottle(bottle);
 		
+		// Get the list of prescribed joint positions
+		bottle->clear(); bottle = parameter.find("configuration_list").asList();
+		std::vector<std::string> configurationList = string_from_bottle(bottle);
+		
+		bottle->clear();
+		for(int i = 0; i < configurationList.size(); i++)
+		{
+			std::string configName = configurationList[i];                              // Get the name
+			
+			if(not parameter.check(configName))                                         // Check that the matching list exists
+			{
+				std::cout << "[WARNING] Could not find the joint configuration named "
+				          << configName << " in " << pathToConfig << ".\n";
+			}
+			else
+			{
+				bottle = parameter.find(configName).asList();                       // Put the list in the bottle
+				configurationMap.emplace(configName, vector_from_bottle(bottle));   // Extract as Eigen::Vector and add to map
+			}
+	
+			bottle->clear();                                                            // Clear for the next loop
+		}
+			
 		iCub2 robot(pathToURDF, jointList, portList);                                       // Start up the robot
 		
 		// Set the Cartesian gains
@@ -85,6 +111,45 @@ int main(int argc, char* argv[])
 		kp = parameter.findGroup("JOINT_GAINS").find("proportional").asFloat64();
 		kd = parameter.findGroup("JOINT_GAINS").find("derivative").asFloat64();	
 		if(not robot.set_joint_gains(kp,kd)) return 1;
+		
+		// Configure communication across the yarp network
+		yarp::os::Network yarp;                                                             // First connect to the network
+		yarp::os::RpcServer port;                                                           // Create a port for sending / receiving info
+		port.open("/command");                                                              // Open the port with the name '/command'
+		yarp::os::Bottle input;                                                             // Store information from the user input
+		yarp::os::Bottle output;                                                            // Store information to send to the user
+		std::string command;                                                                // Response message, command from user
+		
+		// Run the control loop
+		bool active = true;
+		
+		while(active)
+		{
+			output.clear();
+			port.read(input,true);
+			command = input.toString();
+			
+			
+			
+			
+			if(configurationMap.find(command) != configurationMap.end())
+			{
+				output.addString("Capito");
+				
+				//robot.move_to_position(
+			}
+			else if(command == "close")
+			{
+				output.addString("Arrivederci");
+				active = false;
+			}
+			else
+			{
+				output.addString("Cosa");
+			}
+			
+			port.reply(output);
+		}
 		
 		robot.close();
 		
