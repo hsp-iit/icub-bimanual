@@ -87,7 +87,7 @@ void iCub2::run()
 				
 				// Get the limits on the solution
 				lowerBound(i) = this->positionLimit[i][0];
-				upperBound(i) = this->positionLimit[i][0];
+				upperBound(i) = this->positionLimit[i][1];
 				
 				// Convert to constraint vector for the QP solver
 				this->z(i)                 = -upperBound(i);
@@ -98,8 +98,10 @@ void iCub2::run()
 			this->z.tail(10) = -this->b;                                                // For the shoulder constraints
 				
 			// Get the start point for the QP solver
-			Eigen::VectorXd startPoint(this->numJoints);
-			if(last_solution_exists())
+			Eigen::VectorXd startPoint;
+		
+			if(not last_solution_exists()) startPoint = 0.5*(lowerBound + upperBound);  // Halfway between limits
+			else                                                                        // Use last solution to speed up QP solver
 			{
 				try
 				{
@@ -115,11 +117,8 @@ void iCub2::run()
 				catch(const std::exception &exception)
 				{
 					std::cout << exception.what() << std::endl;
-				
-					startPoint = 0.5*(lowerBound + upperBound);                 // Start in the middle of the bounds
 				}			
 			}
-			else startPoint = 0.5*(lowerBound + upperBound);                            // Start in the middle
 			
 			// Now try to solve the QP problem
 			try
@@ -141,6 +140,9 @@ void iCub2::run()
 			          << "Even drones can fly away.\n"
 			          << "The Queen is their slave.\n";
 		}
+		
+		if(not send_joint_commands(qRef)) std::cerr << "[ERROR] [ICUB 2] Could not send joint commands for some reason.\n";
+		
 	}
 	else
 	{
