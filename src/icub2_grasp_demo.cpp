@@ -7,7 +7,12 @@
 #include <yarp/os/Property.h>                                                                       // Load configuration files
 #include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
 
-std::map<std::string, Eigen::VectorXd> configurationMap;
+std::map<std::string, Eigen::VectorXd> configurationMap;                                            // Map of prescribed joint configurations
+
+// These default values are overidden from values loaded from teh config file
+double shortTime = 2.0;
+double longTime  = 4.0;
+
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //               Convert a list of floating point numbers to an Eigen::Vector object              //
@@ -99,7 +104,12 @@ int main(int argc, char* argv[])
 	
 			bottle->clear();                                                            // Clear for the next loop
 		}
-			
+		
+		// Override the timing for the trajectory
+		shortTime = parameter.findGroup("TRAJECTORY_TIMING").find("short_time").asFloat64();
+		longTime  = parameter.findGroup("TRAJECTORY_TIMING").find("long_time").asFloat64();
+		
+		
 		iCub2 robot(pathToURDF, jointList, portList);                                       // Start up the robot
 		
 		// Set the Cartesian gains
@@ -125,23 +135,32 @@ int main(int argc, char* argv[])
 		
 		while(active)
 		{
-			output.clear();
-			port.read(input,true);
-			command = input.toString();
-			
-			
-			
-			
-			if(configurationMap.find(command) != configurationMap.end())
-			{
-				output.addString("Capito");
+			output.clear();                                                             // Clear the output for the new loop
+			port.read(input,true);                                                      // Read any new commands
+			command = input.toString();                                                 // Convert to string
 				
-				//robot.move_to_position(
+			auto blah = configurationMap.find(command);
+			
+			if(blah != configurationMap.end())
+			{
+				if(not robot.move_to_position(blah->second,shortTime))
+				{
+					std::cout << "[ERROR] [ICUB2 GRASP DEMO]: There was a problem initiating joint control.";
+					
+					output.addString("Problema");
+				}
+				else	output.addString("Capito");
 			}
 			else if(command == "close")
 			{
+				robot.halt();
 				output.addString("Arrivederci");
 				active = false;
+			}
+			else if(command == "stop")
+			{
+				robot.halt();
+				output.addString("Capito");
 			}
 			else
 			{
