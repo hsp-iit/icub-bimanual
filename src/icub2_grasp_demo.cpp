@@ -7,13 +7,6 @@
 #include <yarp/os/Property.h>                                                                       // Load configuration files
 #include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
 
-std::map<std::string, Eigen::VectorXd> configurationMap;                                            // Map of prescribed joint configurations
-
-// These default values are overidden from values loaded from teh config file
-double shortTime = 2.0;
-double longTime  = 4.0;
-
-
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //               Convert a list of floating point numbers to an Eigen::Vector object              //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +44,59 @@ std::vector<std::string> string_from_bottle(const yarp::os::Bottle *bottle)
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                                                                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void i_dunno(const yarp::os::Bottle *bottle)
+{
+	std::vector<std::string> configName = string_from_bottle(bottle->find("names").asList());
+	
+	for(int i = 0; i < configName.size(); i++)
+	{
+		std::string name = configName[i];
+	
+		yarp::os::Bottle* vial = bottle->find(configName[i]).asList();
+		
+		if(vial == nullptr)
+		{
+			std::cerr << "[ERROR] Could not find the joint configuration(s) named "
+			          << name << " in the JOINT_CONFIGURATIONS group of the config file.\n";  
+			continue;
+		}
+		
+		yarp::os::Bottle* points = vial->find("points").asList();
+		if(points == nullptr)
+		{
+			std::cerr << "[ERROR] The joint configuration " << name << " does not appear to have "
+			          << "any points listed.\n";
+			continue;
+		}
+		
+		yarp::os::Bottle* times = vial->find("times").asList();
+		if(times == nullptr)
+		{
+			std::cerr << "[ERROR] The joint configuration " << name << " does not appear to have "
+			          << "any times listed.\n";
+			continue;
+		}
+		
+		if(points->size() != times->size())
+		{
+			std::cerr << "[ERROR] In the " << name << " joint configuration, the points list had "
+			          << points->size() << " elements, and the times list had " << times->size()
+			          << " elements.\n";
+			continue;
+		}
+		
+		Eigen::MatrixXd temp(17,points->size());
+		
+		for(int j = 0; j < points->size(); j++) temp.col(j) = vector_from_bottle(points->get(j).asList());
+		
+		std::cout << "Here are the waypoints for the " << name << " action:\n";
+		std::cout << temp << std::endl;
+	}
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                             MAIN                                               //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
@@ -59,58 +105,44 @@ int main(int argc, char* argv[])
 	if(argc != 4)
 	{
 		std::cerr << "[ERROR] [ICUB2 GRASP DEMO] Port name and path to URDF are required. "
-		          << "Usage: ./icub2_grasp_demo /portName /path/to/model.urdf /path/to/config.ini\n";
+		          << "Usage: ./icub2_grasp_demo /portPrefix /path/to/model.urdf /path/to/config.ini\n";
 		
 		return 1;                                                                           // Close with error
 	}
 
-	std::string portName     = argv[1];                                                         // Get the port names
+	std::string portPrefix   = argv[1];                                                         // Get the port names
 	std::string pathToURDF   = argv[2];                                                         // Get the file path
 	std::string pathToConfig = argv[3];                                                         // Path to the configuration file
 	
 	// Generate port list prefixes
 	std::vector<std::string> portList;
-	portList.push_back(portName + "/torso");
-	portList.push_back(portName + "/left_arm");
-	portList.push_back(portName + "/right_arm");
+	portList.push_back(portPrefix + "/torso");
+	portList.push_back(portPrefix + "/left_arm");
+	portList.push_back(portPrefix + "/right_arm");
 	
 	yarp::os::Property parameter; parameter.fromConfigFile(pathToConfig);                       // Load the properties from the config file
 		
-	try // To start up the robot
+	try // to start up the robot
 	{
 		// Get the joint list
-		yarp::os::Bottle* bottle; bottle = parameter.find("joint_list").asList();
-		std::vector<std::string> jointList = string_from_bottle(bottle);
-		
-		// Get the list of prescribed joint positions
-		bottle->clear(); bottle = parameter.find("configuration_list").asList();
-		std::vector<std::string> configurationList = string_from_bottle(bottle);
-		
-		bottle->clear();
-		for(int i = 0; i < configurationList.size(); i++)
+		yarp::os::Bottle* bottle; bottle = parameter.find("joint_names").asList();
+		if(bottle == nullptr)
 		{
-			std::string configName = configurationList[i];                              // Get the name
-			
-			if(not parameter.check(configName))                                         // Check that the matching list exists
-			{
-				std::cout << "[WARNING] Could not find the joint configuration named "
-				          << configName << " in " << pathToConfig << ".\n";
-			}
-			else
-			{
-				bottle = parameter.find(configName).asList();                       // Put the list in the bottle
-				configurationMap.emplace(configName, vector_from_bottle(bottle));   // Extract as Eigen::Vector and add to map
-			}
-	
-			bottle->clear();                                                            // Clear for the next loop
+			std::cerr << "[ERROR] No list of joint names was specified in " << pathToConfig << ".\n";
+			return 1;
 		}
+		std::vector<std::string> jointNames = string_from_bottle(bottle);
+
+		// Load the joint predefined joint configurations
+		bottle->clear(); bottle = &parameter.findGroup("JOINT_CONFIGURATIONS");
+		if(bottle == nullptr)
+		{
+			std::cerr << "[ERROR] No group called JOINT_CONFIGURATIONS could be found in "
+			          << pathToConfig << ".\n";
+		}
+		i_dunno(bottle);
 		
-		// Override the timing for the trajectory
-		shortTime = parameter.findGroup("TRAJECTORY_TIMING").find("short_time").asFloat64();
-		longTime  = parameter.findGroup("TRAJECTORY_TIMING").find("long_time").asFloat64();
-		
-		
-		iCub2 robot(pathToURDF, jointList, portList);                                       // Start up the robot
+		iCub2 robot(pathToURDF, jointNames, portList);                                       // Start up the robot
 		
 		// Set the Cartesian gains
 		double kp = parameter.findGroup("CARTESIAN_GAINS").find("proportional").asFloat64();
@@ -139,19 +171,7 @@ int main(int argc, char* argv[])
 			port.read(input,true);                                                      // Read any new commands
 			command = input.toString();                                                 // Convert to string
 				
-			auto blah = configurationMap.find(command);
-			
-			if(blah != configurationMap.end())
-			{
-				if(not robot.move_to_position(blah->second,shortTime))
-				{
-					std::cout << "[ERROR] [ICUB2 GRASP DEMO]: There was a problem initiating joint control.";
-					
-					output.addString("Problema");
-				}
-				else	output.addString("Capito");
-			}
-			else if(command == "close")
+			if(command == "close")
 			{
 				robot.halt();
 				output.addString("Arrivederci");
@@ -193,21 +213,21 @@ int main(int argc, char *argv[])
 	if(argc != 3)									
 	{
 		std::cerr << "[ERROR] [ICUB2 GRASP DEMO] Port name and path to URDF are requred. "
-			  << " Usage: './grasp-demo /portName /path/to/model.urdf'" << std::endl;
+			  << " Usage: './grasp-demo /portPrefix /path/to/model.urdf'" << std::endl;
 		return 1;                                                                           // Close with error
 	}
 	else
 	{
-		std::string portName   = argv[1];
+		std::string portPrefix   = argv[1];
 		std::string pathToURDF = argv[2];
 		
 		std::vector<std::string> portList;
-		portList.push_back(portName + "/torso");
-		portList.push_back(portName + "/left_arm");
-		portList.push_back(portName + "/right_arm");
+		portList.push_back(portPrefix + "/torso");
+		portList.push_back(portPrefix + "/left_arm");
+		portList.push_back(portPrefix + "/right_arm");
 	
 		// Create the robot model
-		iCub2 robot(pathToURDF, jointList, portList);
+		iCub2 robot(pathToURDF, jointNames, portList);
 		
 		// Configure communication across the yarp network
 		yarp::os::Network yarp;                                                             // First connect to the network
