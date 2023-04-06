@@ -27,8 +27,5 @@ add_subdirectory(gazebo)                                                        
 include_directories(include)                                                                        # Location of header files
 
 #################################### Executables to be compiled ####################################
-add_executable(test_build src/test_build.cpp include/JointInterface.cpp)
-target_link_libraries(test_build Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
-
-add_executable(icub2_grasp_demo src/icub2_grasp_demo.cpp include/JointInterface.cpp include/iCubBase.cpp include/Payload.cpp include/CartesianTrajectory.cpp include/PositionControl.cpp include/iCub2.cpp include/QPSolver.cpp)
+add_executable(icub2_grasp_demo src/iCub2_Grasp_Demo.cpp src/JointInterface.cpp src/iCubBase.cpp src/Payload.cpp src/CartesianTrajectory.cpp src/PositionControl.cpp src/iCub2.cpp src/QPSolver.cpp src/Utilities.cpp)
 target_link_libraries(icub2_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
