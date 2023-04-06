@@ -4,97 +4,11 @@
 
 #include <iCub2.h>                                                                                  // Custom class for controlling iCub2
 #include <map>                                                                                      // std::map
+#include <Utilities.h>                                                                              // Functions for processing lists from yarp config files
 #include <yarp/os/Property.h>                                                                       // Load configuration files
 #include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //               Convert a list of floating point numbers to an Eigen::Vector object              //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-Eigen::VectorXd vector_from_bottle(const yarp::os::Bottle *bottle)
-{
-	Eigen::VectorXd vector(bottle->size());                                                     // Value to be returned
-	
-	for(int i = 0; i < bottle->size(); i++)
-	{
-		yarp::os::Value value = bottle->get(i);                                            // Get the ith element
-		
-		if(value.isFloat64()) vector(i) = value.asFloat64();                                // If it is a double, add to the vector
-		else throw std::invalid_argument("[ERROR] vector_from_bottle(): The list contains a non-floating point element."); // Failure
-	}
-	
-	return vector;
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                     Convert a list of strings to a std::vector<std:string>>                    //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-std::vector<std::string> string_from_bottle(const yarp::os::Bottle *bottle)
-{
-	std::vector<std::string> list;
-	
-	for(int i = 0; i < bottle->size(); i++)
-	{
-		yarp::os::Value value = bottle->get(i);                                             // Get the ith element
-		
-		if(value.isString()) list.push_back(value.asString());
-		else throw std::invalid_argument("[ERROR] string_from_bottle(): The list contains a non-string element.");
-	}
-	
-	return list;
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                                                                                                //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-void i_dunno(const yarp::os::Bottle *bottle)
-{
-	std::vector<std::string> configName = string_from_bottle(bottle->find("names").asList());
-	
-	for(int i = 0; i < configName.size(); i++)
-	{
-		std::string name = configName[i];
-	
-		yarp::os::Bottle* vial = bottle->find(configName[i]).asList();
-		
-		if(vial == nullptr)
-		{
-			std::cerr << "[ERROR] Could not find the joint configuration(s) named "
-			          << name << " in the JOINT_CONFIGURATIONS group of the config file.\n";  
-			continue;
-		}
-		
-		yarp::os::Bottle* points = vial->find("points").asList();
-		if(points == nullptr)
-		{
-			std::cerr << "[ERROR] The joint configuration " << name << " does not appear to have "
-			          << "any points listed.\n";
-			continue;
-		}
-		
-		yarp::os::Bottle* times = vial->find("times").asList();
-		if(times == nullptr)
-		{
-			std::cerr << "[ERROR] The joint configuration " << name << " does not appear to have "
-			          << "any times listed.\n";
-			continue;
-		}
-		
-		if(points->size() != times->size())
-		{
-			std::cerr << "[ERROR] In the " << name << " joint configuration, the points list had "
-			          << points->size() << " elements, and the times list had " << times->size()
-			          << " elements.\n";
-			continue;
-		}
-		
-		Eigen::MatrixXd temp(17,points->size());
-		
-		for(int j = 0; j < points->size(); j++) temp.col(j) = vector_from_bottle(points->get(j).asList());
-		
-		std::cout << "Here are the waypoints for the " << name << " action:\n";
-		std::cout << temp << std::endl;
-	}
-}
+std::map<std::string, JointTrajectory> jointConfigMap;                                              // Attach a name to each set of waypoints
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                             MAIN                                               //
@@ -140,9 +54,9 @@ int main(int argc, char* argv[])
 			std::cerr << "[ERROR] No group called JOINT_CONFIGURATIONS could be found in "
 			          << pathToConfig << ".\n";
 		}
-		i_dunno(bottle);
+		if(not load_joint_configurations(bottle,jointConfigMap)) return 1;
 		
-		iCub2 robot(pathToURDF, jointNames, portList);                                       // Start up the robot
+		iCub2 robot(pathToURDF, jointNames, portList);                                      // Start up the robot
 		
 		// Set the Cartesian gains
 		double kp = parameter.findGroup("CARTESIAN_GAINS").find("proportional").asFloat64();
@@ -171,7 +85,15 @@ int main(int argc, char* argv[])
 			port.read(input,true);                                                      // Read any new commands
 			command = input.toString();                                                 // Convert to string
 				
-			if(command == "close")
+			auto iterator = jointConfigMap.find(command);
+			if(iterator != jointConfigMap.end())
+			{
+				robot.move_to_positions(iterator->second.waypoints,
+				                        iterator->second.times);
+
+				output.addString("Capito");
+			}
+			else if(command == "close")
 			{
 				robot.halt();
 				output.addString("Arrivederci");
@@ -180,7 +102,7 @@ int main(int argc, char* argv[])
 			else if(command == "stop")
 			{
 				robot.halt();
-				output.addString("Capito");
+				output.addString("Fermata");
 			}
 			else
 			{
