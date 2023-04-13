@@ -74,10 +74,11 @@ void iCub2::run()
 	{
 		double elapsedTime = yarp::os::Time::now() - this->startTime;                       // Time since start of the control loop
 		
+		Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);           // Instantaneous bounds on joint motion
+		
 		if(this->controlSpace == joint)
 		{
 			Eigen::VectorXd q_d(this->numJoints);                                       // Desired joint positions
-			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);   // Bounds on the solution
 			
 			// Get the desired position from the joint trajectory generator
 			// and set the bounds on the solution
@@ -92,10 +93,8 @@ void iCub2::run()
 				// Convert to constraint vector for the QP solver
 				this->z(i)                 = -upperBound(i);
 				this->z(i+this->numJoints) =  lowerBound(i);
-				
 			}
-			
-			this->z.tail(10) = -this->b;                                                // For the shoulder constraints
+				this->z.tail(10) = -this->b;                                        // For the shoulder constraints
 				
 			// Get the start point for the QP solver
 			Eigen::VectorXd startPoint;
@@ -103,7 +102,7 @@ void iCub2::run()
 			if(not last_solution_exists()) startPoint = 0.5*(lowerBound + upperBound);  // Halfway between limits
 			else                                                                        // Use last solution to speed up QP solver
 			{
-				try
+				try // to get the previous solution from the solver
 				{
 					startPoint = last_solution().tail(this->numJoints);         // Remove Lagrange multipliers
 					
@@ -116,12 +115,11 @@ void iCub2::run()
 				}
 				catch(const std::exception &exception)
 				{
-					std::cout << exception.what() << std::endl;
+					std::cout << exception.what() << std::endl;                 // Failed for some reason
 				}			
 			}
 			
-			// Now try to solve the QP problem
-			try
+			try // to solve the QP problem
 			{
 				qRef = solve(Eigen::MatrixXd::Identity(this->numJoints,this->numJoints), // H
 					    -q_d,                                                        // f
@@ -136,13 +134,136 @@ void iCub2::run()
 		}
 		else // this->controlSpace == cartesian
 		{
-			std::cout << "Worker bees can leave.\n"
-			          << "Even drones can fly away.\n"
-			          << "The Queen is their slave.\n";
+			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);               // Get the feedforward + feedback control
+			
+			Eigen::VectorXd redundantTask = 0.05*(this->setPoint - this->q);            // As it says
+			
+			Eigen::VectorXd dq(this->numJoints);                                        // We want to solve for this
+			
+			// Solve for the instantaneous joint limits
+			for(int i = 0; i < this->numJoints; i++)
+			{
+				compute_joint_limits(lowerBound(i),upperBound(i),i);
+				this->z(i)                 = -upperBound(i);
+				this->z(i+this->numJoints) =  lowerBound(i);
+			}
+				this->z.tail(10) = -(this->A*this->qRef + this->b);
+				
+			// Values needed for the QP solver
+			Eigen::MatrixXd H;
+			Eigen::VectorXd f;
+			Eigen::VectorXd startPoint;
+				
+			double mu = sqrt((this->J*this->J.transpose()).determinant());
+			double threshold = 1e-05;
+			
+			if( mu < threshold ) // Solve the damped least squares problem
+			{
+				double maxDamping = 0.1;
+				double damping    = (1 - (mu*mu)/(threshold*threshold))*maxDamping;
+				
+				H = this->J.transpose()*this->J;
+				for(int i = 0; i < this->numJoints; i++) H(i,i) += damping;         //  The same as J'*J + lambda*I
+				
+				f = -this->J.transpose()*dx;
+				
+				if(last_solution_exists())
+				{
+					try
+					{
+						startPoint = last_solution().tail(this->numJoints);  // Ignore any Lagrange multipliers
+						
+						// Ensure it's within the joint limits
+						for(int i = 0; i < this->numJoints; i++)
+						{
+							     if(startPoint(i) < lowerBound(i)) startPoint(i) += 0.001;
+							else if(startPoint(i) > upperBound(i)) startPoint(i) -= 0.001;
+						}
+					}
+					catch(const std::exception &exception)
+					{
+						std::cout << exception.what() << std::endl;
+					}	
+				}
+				else	startPoint = 0.5*(lowerBound + upperBound);                 // No solution yet; start in the middle
+				
+				try // To solve the QP problem
+				{
+					dq = solve(H,f,
+					           this->B.block(0,12,10+2*this->numJoints,this->numJoints), // Remove component for Lagrange multipliers	
+						   this->z, startPoint);
+				}
+				catch(const std::exception &exception)
+				{
+					std::cout << exception.what() << std::endl;
+					dq.setZero();                                               // Couldn't solve control problem; don't move
+				}
+			}
+			else
+			{
+				// H = [ 0  J ]
+				//     [ J' M ]
+				H.resize(12+this->numJoints,12+this->numJoints);
+				H.block( 0, 0,              12,              12).setZero();
+				H.block( 0,12,              12, this->numJoints) = this->J;
+				H.block(12, 0, this->numJoints,              12) = this->J.transpose();
+				H.block(12,12, this->numJoints, this->numJoints) = this->M;
+				
+				// f = [        -dx        ]
+				//     [  -M*redundantTask ]
+				f.resize(12+this->numJoints);
+				f.head(12)              = -dx;
+				f.tail(this->numJoints) = -M*redundantTask;
+				
+				// Get the start point for the QP solver
+				startPoint.resize(12+this->numJoints);                              // +12 for Lagrange multipliers
+				startPoint.head(12) = (this->J*this->invM*this->J.transpose()).partialPivLu().solve(this->J*redundantTask - dx); // Lagrange multipliers
+				if(not last_solution_exists())
+				{
+					startPoint.tail(this->numJoints) = 0.5*(lowerBound + upperBound);   // Start in the middle of the boundaries
+				}
+				else
+				{
+					try // to get the last solution, if it exists
+					{
+						startPoint.tail(this->numJoints) = last_solution().tail(this->numJoints); // Try to get the previous solution
+						
+						// Ensure it's within the new bounds
+						for(int i = 0; i < this->numJoints; i++)
+						{
+							     if(startPoint(12+i) < lowerBound(i)) startPoint(12+i) += 0.001;
+							else if(startPoint(12+i) > upperBound(i)) startPoint(12+i) -= 0.001;
+						}
+					}
+					catch(const std::exception &exception)
+					{
+						std::cout << exception.what() << std::endl;         // Something went wrong somehow
+					}
+					
+					try // to solve the QP problem
+					{
+						dq = (solve(H,f,this->B,this->z,startPoint)).tail(this->numJoints); // We don't need the Lagrange multipliers for the solution
+					}
+					catch(const std::exception &exception)
+					{
+						std::cout << exception.what() << std::endl;         // Inform user
+						dq.setZero();                                       // Don't move
+					}
+				}
+			}
+			
+			// Re-solve the problem subject to grasp constraints Jc*qdot = 0
+			if(this->is_grasping())
+			{
+				std::cout << "Worker bees can leave.\n";
+				std::cout << "Even drones can fly away.\n";
+				std::cout << "The Queen is their slave.\n";
+			}
+			
+			this->qRef += dq;                                                           // Update the reference point
 		}
 		
 		if(not send_joint_commands(qRef)) std::cerr << "[ERROR] [ICUB 2] Could not send joint commands for some reason.\n";
-		
 	}
 	else
 	{
