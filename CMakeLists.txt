@@ -24,6 +24,7 @@ icubcontrib_add_uninstall_target()					                            # Enables uni
 
 #################################### Other files to be built #######################################
 add_subdirectory(gazebo)                                                                            # Location of other CMakeLists
+add_subdirectory(interface)                                                                         # Location & definition of thrift interface
 include_directories(include)                                                                        # Location of header files
 
 #################################### Executables to be compiled ####################################
