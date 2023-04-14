@@ -4,22 +4,14 @@
 #                                                                                                  #
 ####################################################################################################
 
-cmake_minimum_required(VERSION 3.12)
+find_package(YARP REQUIRED)                                                                         # Won't work otherwise!
+ 
+set(generated_libs_dir "${PROJECT_SOURCE_DIR}")                                                     # Start point for generating directories, files
 
-project(manipulation_interface LANGUAGES CXX)
+############################ Invoke YARP IDL macro to generate files ###############################
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-# Create the component (navigation client)
-find_package(YARP COMPONENTS os dev idl_tools REQUIRED)
-
-add_library(manipulation_interface STATIC)
-# Create the grasp_interface C++ Library
-yarp_add_idl(IDL_GEN_FILES manipulation_interface.thrift)
-
-target_sources(manipulation_interface
-    PRIVATE
-    ${IDL_GEN_FILES}
-)
+yarp_idl_to_dir(INPUT_FILES ManipulationInterface.thrift
+                OUTPUT_DIR ${generated_libs_dir}
+                SOURCES_VAR src                                                                     # Location of generated source files
+                HEADERS_VAR include                                                                 # Location of generated header files
+                INCLUDE_DIRS_VAR include_dirs)                                                      # Paths to include listed in ${include_dirs}
