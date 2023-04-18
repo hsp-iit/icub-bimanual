@@ -555,6 +555,29 @@ bool iCubBase::set_joint_gains(const double &proportional, const double &derivat
 	}
 }
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                    Get the constraint matrix, vector for the control problem                   //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::compute_constraints(Eigen::MatrixXd &B, Eigen::VectorXd &z)
+{
+	if(this->_robotModel == "iCub2")
+	{
+	
+	}
+	else if(this->_robotModel == "ergoCub")
+	{
+	
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB BASE] compute_constraints(): "
+		          << "Expected 'iCub2' or 'ergoCub' for the robot model, but "
+		          << "it was " << this->_robotModel << ".\n";
+		
+		return false;
+	}
+}
+
 /*
 iCubBase::iCubBase(const std::string              &pathToURDF,
                    const std::vector<std::string> &jointNames,

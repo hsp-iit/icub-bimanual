@@ -1,5 +1,21 @@
 service CommandInterface
 {
+	bool grasp_object(1:list<double> handPoses);
+	
+	bool move_object(1:list<double> pose,
+	                 2:double time);
+	                 
+	bool move_hands(1:string action);
+	
+	bool move_hands(1:list<double> pose,
+	                2:double time);
+	                
+	bool move_joints(1:list<double> position,
+	                 2:double time);
+	
+	
+	
+
 	bool grasp_object(1:list<double> pose);                                                     # Grasp an object in a given pose
 	
 	bool move_object_to_pose(1:list<double> pose,

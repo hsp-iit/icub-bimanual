@@ -125,6 +125,8 @@ class iCubBase : public QPSolver,
 		iDynTree::Transform Eigen_to_iDynTree(const Eigen::Isometry3d &T);                  // Converts from Eigen to iDynTree
 		Eigen::Isometry3d   iDynTree_to_Eigen(const iDynTree::Transform &T);
 		
+		bool get_constraints(Eigen::MatrixXd &B, Eigen::VectorXf &z);                       // Get the control constraints based on robot model
+		
 		// NOTE: THESE FUNCTIONS MUST BE DECLARED IN ANY CHILD CLASS OF THIS ONE
 		virtual bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum) = 0;
 		virtual Eigen::VectorXd track_joint_trajectory(const double &time) = 0;

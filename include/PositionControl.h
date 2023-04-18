@@ -32,6 +32,7 @@ class PositionControl : public iCubBase
 
 		// NOTE; THESE ARE INHERITED FROM PERIODICTHREAD
 		bool threadInit();
+		void run();
 		void threadRelease();
 //		void run() {} <--- TO BE DEFINED IN ANY CHILD CLASS
 };                                                                                                  // Semicolon needed after class declaration

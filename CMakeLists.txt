@@ -31,5 +31,8 @@ include_directories(include)                                                    
 add_executable(icub2_grasp_demo src/iCub2_Grasp_Demo.cpp src/JointInterface.cpp src/iCubBase.cpp src/Payload.cpp src/CartesianTrajectory.cpp src/PositionControl.cpp src/iCub2.cpp src/QPSolver.cpp src/Utilities.cpp)
 target_link_libraries(icub2_grasp_demo Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
 
+add_executable(icub2_command_client src/iCub2CommandClient.cpp src/CommandInterface.cpp)
+target_link_libraries(icub2_command_client ${YARP_LIBRARIES})
+
 add_executable(icub2_command_server src/iCub2CommandServer.cpp src/JointInterface.cpp src/iCubBase.cpp src/Payload.cpp src/CartesianTrajectory.cpp src/PositionControl.cpp src/iCub2.cpp src/QPSolver.cpp src/Utilities.cpp src/CommandInterface.cpp)
 target_link_libraries(icub2_command_server Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
