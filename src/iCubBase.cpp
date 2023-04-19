@@ -17,7 +17,8 @@ iCubBase::iCubBase(const std::string &pathToURDF,
                    qdot(Eigen::VectorXd::Zero(this->numJoints)),                                    // Set the size of the velocity vector
                    J(Eigen::MatrixXd::Zero(12,this->numJoints)),                                    // Set the size of the Jacobian matrix
                    M(Eigen::MatrixXd::Zero(this->numJoints,this->numJoints)),                       // Set the size of the inertia matrix
-                   invM(Eigen::MatrixXd::Zero(this->numJoints,this->numJoints))                     // Set the size of the inverse inertia
+                   invM(Eigen::MatrixXd::Zero(this->numJoints,this->numJoints)),                    // Set the size of the inverse inertia
+                   desiredConfiguration(Eigen::VectorXd::Zero(this->numJoints))                     // Desired configuration when running Cartesian control
 {
 	iDynTree::ModelLoader loader;
 	
@@ -552,30 +553,6 @@ bool iCubBase::set_joint_gains(const double &proportional, const double &derivat
 		this->kd = derivative;
 		
 		return true;
-	}
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                    Get the constraint matrix, vector for the control problem                   //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-Eigen::Matrix
-bool iCubBase::compute_constraints(Eigen::MatrixXd &B, Eigen::VectorXd &z)
-{
-	if(this->_robotModel == "iCub2")
-	{
-	
-	}
-	else if(this->_robotModel == "ergoCub")
-	{
-	
-	}
-	else
-	{
-		std::cerr << "[ERROR] [iCUB BASE] compute_constraints(): "
-		          << "Expected 'iCub2' or 'ergoCub' for the robot model, but "
-		          << "it was " << this->_robotModel << ".\n";
-		
-		return false;
 	}
 }
 

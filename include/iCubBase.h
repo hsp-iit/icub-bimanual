@@ -36,7 +36,6 @@ class iCubBase : public QPSolver,
 		
 		void halt();                                                                        // Stops the robot immediately
 		
-		
 		// Joint control functions
 		bool move_to_position(const Eigen::VectorXd &position,
 		                      const double &time);                                          // Move the joints to a given position
@@ -77,14 +76,15 @@ class iCubBase : public QPSolver,
 
 	protected:
 	
+		std::string _robotModel;                                                            // iCub2, iCub3, or ergoCub
+		
 		enum ControlSpace {joint, cartesian} controlSpace;
 	
-		bool isFinished = false;                                                            // For regulating control actions
+		bool isFinished = false;                                                            // For regulating control actions	
 		
 		double startTime, endTime;                                                          // For regulating the control loop
-		
 		double dt = 0.01;
-		
+			
 		// Kinematics & dynamics
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
 		Eigen::MatrixXd J, M, invM;                                                         // Jacobian, inertia, and inverse of inertia
@@ -95,6 +95,9 @@ class iCubBase : public QPSolver,
 		std::vector<iDynTree::CubicSpline> jointTrajectory;                                 // As it says
 		
 		// Cartesian control
+		double maxDamping = 0.01;                                                           // For singularity avoidance
+		double threshold  = 1e-04;                                                          // For activating singularity avoidance
+		
 		Eigen::Matrix<double,6,6> gainTemplate = (Eigen::MatrixXd(6,6) << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		                                                                  0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
 		                                                                  0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
@@ -106,6 +109,8 @@ class iCubBase : public QPSolver,
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Trajectory generators for the hands
 		Eigen::Isometry3d leftPose, rightPose;                                              // Left and right hand pose
 		
+		Eigen::VectorXd desiredConfiguration;
+		
 		// Grasp control
 		bool isGrasping = false;
 		Eigen::Matrix<double,6,12> G;                                                       // Grasp matrix
@@ -114,8 +119,6 @@ class iCubBase : public QPSolver,
 		CartesianTrajectory payloadTrajectory;
 		
 	private:
-
-		std::string _robotModel;                                                            // iCub2, iCub3, or ergoCub
 		
 		// Kinematic & dynamic modelling
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
@@ -137,6 +140,7 @@ class iCubBase : public QPSolver,
 //		bool threadInit() { return true; }
 //		void threadRelease() {}
 //              void run() {}                                                                       // Defined in iCub2.h
+
 };                                                                                                  // Semicolon needed after class declaration
 
 #endif

@@ -1,35 +1,20 @@
 service CommandInterface
 {
-	bool grasp_object(1:list<double> handPoses);
+	bool grasp_object(1:list<double> handPoses);                                                # Grasp object with two hands
 	
-	bool move_object(1:list<double> pose,
-	                 2:double time);
+	bool is_finished();                                                                         # Check if the robot has finished excuting a task
+	
+	bool move_object_to_pose(1:list<double> pose,                                               # Move a grasped object to the given pose in the given time
+	                         2:double time);
 	                 
-	bool move_hands(1:string action);
-	
-	bool move_hands(1:list<double> pose,
-	                2:double time);
-	                
-	bool move_joints(1:list<double> position,
-	                 2:double time);
-	
-	
-	
+	bool move_hands_to_pose(1:list<double> poses,                                               # Move the hands to given poses in the givne time
+	                        2:double time);
 
-	bool grasp_object(1:list<double> pose);                                                     # Grasp an object in a given pose
+	bool move_hands_by_action(1:string actionName);                                             # Move the hands based on a prescribed action
 	
-	bool move_object_to_pose(1:list<double> pose,
-	                         2:double time);                                                    # Move a grasped object to a given pose
+	bool move_to_configuration(1:list<double> jointConfiguration);                              # Move the joints to a given configuration
 	
-	bool move_hands_by_action(1:string actionName);                                             # Move hands with a pre-defined transform
-	
-	bool move_hands_to_pose(1:list<double> pose,
-	                        2:double time);                                                     # Move the hands to a given pose
-	
-	bool move_joints_to_named_position(1:string positionName);                                  # Move the joints to (a) predefined configuration(s)
-	
-	bool move_joints_to_position(1:list<double> position,
-	                             2:double time);                                                # Move the joints to a given configuration
+	bool move_to_named_configuration(1:string configName);                                      # Move joints to prescribed configuration
 	
 	bool release_object();                                                                      # As it says on the label
 	

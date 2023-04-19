@@ -33,11 +33,13 @@ void PositionControl::run()
 		
 		Eigen::VectorXd dq(this->numJoints); dq.setZero();                                  // We want to solve for this		
 		
+		Eigen::VectorXd redundantTask = 0.1*(this->desiredConfiguration - this->q);
+		
 		if(this->controlSpace == joint)
 		{
 			Eigen::VectorXd desiredPosition(this->numJoints);                           // From the trajectory object
 			Eigen::VectorXd lowerBound(this->numJoints);                                // Lower limit on joint motion
-			EIgen::VectorXd upperBound(this->numJoints);                                // Upper limit on joint motion
+			Eigen::VectorXd upperBound(this->numJoints);                                // Upper limit on joint motion
 				
 			for(int i = 0; i < this->numJoints; i++)
 			{
@@ -57,7 +59,7 @@ void PositionControl::run()
 				{
 					try // to get the last solution from the QP solver
 					{
-						startPoint = last_solution.tail(this->numJoints);   // Remove Lagrange multipliers (if they exist)
+						startPoint = last_solution().tail(this->numJoints); // Remove Lagrange multipliers (if they exist)
 					}
 					catch(const std::exception &exception)
 					{
@@ -73,8 +75,8 @@ void PositionControl::run()
 				//     [  I ]
 				//     [  A ]
 				Eigen::MatrixXd B(2*this->numJoints + 10, this->numJoints);
-				B.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints);
-				B.block(  this->numJoints, 0, this->numJoints, this->numJoints) =  Eigen::MatrixXd::Identity(this->numJoints);
+				B.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+				B.block(  this->numJoints, 0, this->numJoints, this->numJoints) =  Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
 				B.block(2*this->numJoints, 0, this->numJoints, this->numJoints) =  this->A; // Shoulder constraints
 				
 				// z = [   -dq_max  ]
@@ -108,7 +110,7 @@ void PositionControl::run()
 		}
 		else // this->controlSpace == Cartesian
 		{
-			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime):               // Get the required Cartesian motion
+			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);              // Get the required Cartesian motion
 			
 			// Get the instantaneous limits on the joint motion
 			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
@@ -146,14 +148,15 @@ void PositionControl::run()
 				//     [    dq_min  ]
 				//     [ -(A*q + b) ]
 				Eigen::VectorXd z(2*this->numJoints+10);
-				z(              0, 0, this->numJoints, 1) = -upperBound;
-				z(this->numJoints, 0, this->numJoints, 1) =  lowerBound;
+				z.block(              0, 0, this->numJoints, 1) = -upperBound;
+				z.block(this->numJoints, 0, this->numJoints, 1) =  lowerBound;
 				z.tail(10) = -(this->A*this->q + this->b);
 			
 				if(mu > this->threshold) // i.e. not singular
 				{
 					// H = [ 0  J ]
 					//     [ J' M ]
+					Eigen::MatrixXd H(12+this->numJoints, 12+this->numJoints);
 					H.resize(12+this->numJoints,12+this->numJoints);
 					H.block( 0, 0,              12,              12).setZero();
 					H.block( 0,12,              12, this->numJoints) = this->J;
@@ -162,6 +165,7 @@ void PositionControl::run()
 					
 					// f = [        -dx        ]
 					//     [  -M*redundantTask ]
+					Eigen::VectorXd f(12+this->numJoints);
 					f.resize(12+this->numJoints);
 					f.head(12)              = -dx;
 					f.tail(this->numJoints) = -M*redundantTask;
@@ -169,11 +173,11 @@ void PositionControl::run()
 					// B = [ 0 -I ]
 					//     [ 0  I ]
 					//     [ 0  A ]
-					Eigen::MatrixXd B(2*this->n+10,12+this->n);                 // 2*n for joint limits, 10 for shoulder limits
-					this->B.block(                0, 0,10+2*this->numJoints,             12) = Eigen::MatrixXd::Zero(10+2*this->numJoints,12);
-					this->B.block(                0,12,     this->numJoints,this->numJoints) =-Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-					this->B.block(  this->numJoints,12,     this->numJoints,this->numJoints) = Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-					this->B.block(2*this->numJoints,12,                  10,this->numJoints) = this->A;
+					Eigen::MatrixXd B(2*this->numJoints+10,12+this->numJoints); // 2*n for joint limits, 10 for shoulder limits
+					B.block(                0, 0,10+2*this->numJoints,             12) = Eigen::MatrixXd::Zero(10+2*this->numJoints,12);
+					B.block(                0,12,     this->numJoints,this->numJoints) =-Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+					B.block(  this->numJoints,12,     this->numJoints,this->numJoints) = Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+					B.block(2*this->numJoints,12,                  10,this->numJoints) = this->A;
 					
 					try // to solve the QP problem
 					{
@@ -196,9 +200,9 @@ void PositionControl::run()
 					// B = [ -I ]
 					//     [  I ]
 					//     [  A ]
-					Eigen::MatrixXd B(2*this->numJoints + 10, this->numJoints, this->numJoints);
-					B.block(                0,  0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints);
-					B.block  (this->numJoints,  0, this->numJoints, this->numJoints) =  Eigen::MatrixXd::Identity(this->numJoints);
+					Eigen::MatrixXd B(2*this->numJoints + 10, this->numJoints);
+					B.block(                0,  0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+					B.block  (this->numJoints,  0, this->numJoints, this->numJoints) =  Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
 					B.block(2*this->numJoints,  0,              10, this->numJoints) =  this->A;
 					
 					try // to solve the QP problem
@@ -236,12 +240,13 @@ void PositionControl::run()
 					// P = [ damping*I ]
 					//     [     J     ]
 					Eigen::MatrixXd P(this->numJoints+12,this->numJoints);
-					P.block(              0, 0, this->numJoints, this->numJoints) = damping*Eigen::Matrix::Identity(this->numJoints,this->numJoints);
+					P.block(              0, 0, this->numJoints, this->numJoints) = damping*Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
 					P.block(this->numJoints, 0,              12, this->numJoints) = this->J;
 					
 					try // to solve the QP problem
 					{
-						dq = QPSolver::least_squares(v,P,lowerBound,upperBound,startPoint);
+						dq = QPSolver::least_squares(v,P, Eigen::MatrixXd::Identity(12+this->numJoints,12+this->numJoints),
+						                             lowerBound,upperBound,startPoint);
 					}
 					catch(const std::exception &exception)
 					{
