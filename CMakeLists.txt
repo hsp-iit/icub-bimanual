@@ -28,5 +28,5 @@ add_subdirectory(interface)                                                     
 include_directories(include)                                                                        # Location of header files
 
 #################################### Executables to be compiled ####################################
-add_executable(command_server src/CommandServer.cpp src/CommandInterface.cpp src/JointInterface.cpp src/iCubBase.cpp src/PositionControl.cpp src/QPSolver.cpp src/CartesianTrajectory.cpp src/Payload.cpp)
+add_executable(command_server src/CommandServer.cpp src/CommandInterface.cpp src/JointInterface.cpp src/iCubBase.cpp src/PositionControl.cpp src/Utilities.cpp src/QPSolver.cpp src/CartesianTrajectory.cpp src/Payload.cpp)
 target_link_libraries(command_server Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})

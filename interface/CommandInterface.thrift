@@ -12,7 +12,8 @@ service CommandInterface
 
 	bool move_hands_by_action(1:string actionName);                                             # Move the hands based on a prescribed action
 	
-	bool move_to_configuration(1:list<double> jointConfiguration);                              # Move the joints to a given configuration
+	bool move_to_configuration(1:list<double> jointConfiguration,
+	                           2:double time);                                                  # Move the joints to a given configuration
 	
 	bool move_to_named_configuration(1:string configName);                                      # Move joints to prescribed configuration
 	

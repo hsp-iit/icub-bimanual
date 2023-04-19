@@ -6,12 +6,12 @@
 iCubBase::iCubBase(const std::string &pathToURDF,
                    const std::vector<std::string> &jointList,
                    const std::vector<std::string> &portList,
-                   const Eigen::Isometry3d        &torsoPose,
+ //                  const Eigen::Isometry3d        &torsoPose,
                    const std::string              &robotModel)
                    :
                    yarp::os::PeriodicThread(0.01),                                                  // Create thread to run at 100Hz
                    JointInterface(jointList, portList),                                             // Open communication with joint motors
-                   _torsoPose(Eigen_to_iDynTree(torsoPose)),                                        // Pose of torso relative to world frame
+ //                  _torsoPose(Eigen_to_iDynTree(torsoPose)),                                        // Pose of torso relative to world frame
                    _robotModel(robotModel),                                                         // iCub2, iCub3, ergoCub
                    q(Eigen::VectorXd::Zero(this->numJoints)),                                       // Set the size of the position vector
                    qdot(Eigen::VectorXd::Zero(this->numJoints)),                                    // Set the size of the velocity vector
@@ -123,8 +123,8 @@ bool iCubBase::update_state()
 		}
 
 		// Put them in to the iDynTree class to solve the kinematics and dynamics
-		if(this->computer.setRobotState(this->_torsoPose,                                   // As it says on the label
-		                                tempPosition,                                       // Joint positions
+		if(this->computer.setRobotState(iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),iDynTree::Position(0,0,0)),
+		                                tempPosition,
 		                                iDynTree::Twist(iDynTree::GeomVector3(0,0,0), iDynTree::GeomVector3(0,0,0)), // Torso twist
 		                                tempVelocity,                                       // Joint velocities
 		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity

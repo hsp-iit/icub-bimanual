@@ -15,10 +15,10 @@ class PositionControl : public iCubBase
 		PositionControl(const std::string              &pathToURDF,
 			        const std::vector<std::string> &jointList,
 			        const std::vector<std::string> &portList,
-			        const Eigen::Isometry3d        &torsoPose,
+//			        const Eigen::Isometry3d        &torsoPose,
 			        const std::string              &robotModel)
 		:
-	        iCubBase(pathToURDF, jointList, portList, torsoPose, robotModel)
+	        iCubBase(pathToURDF, jointList, portList, robotModel)
 	        {
 	        	// Shoulder constraints for iCub 2
 			double c = 1.71;
