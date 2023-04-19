@@ -558,6 +558,7 @@ bool iCubBase::set_joint_gains(const double &proportional, const double &derivat
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                    Get the constraint matrix, vector for the control problem                   //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Matrix
 bool iCubBase::compute_constraints(Eigen::MatrixXd &B, Eigen::VectorXd &z)
 {
 	if(this->_robotModel == "iCub2")

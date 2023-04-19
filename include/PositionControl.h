@@ -18,7 +18,27 @@ class PositionControl : public iCubBase
 			        const Eigen::Isometry3d        &torsoPose,
 			        const std::string              &robotModel)
 		:
-	        iCubBase(pathToURDF, jointList, portList, torsoPose, robotModel) {}
+	        iCubBase(pathToURDF, jointList, portList, torsoPose, robotModel)
+	        {
+	        	// Shoulder constraints for iCub 2
+			double c = 1.71;
+			this->A = Eigen::MatrixXd::Zero(10,this->numJoints);
+			this->A.block(0,3,5,3) <<  c, -c,  0,
+						   c, -c, -c,
+						   0,  1,  1,
+						  -c,  c,  c,
+					 	   0, -1, -1;
+							   
+			this->A.block(5,10,5,3) = this->A.block(0,3,5,3);                           // Same constraint for right arm as left arm
+				
+			this->b.head(5) << 347.00*(M_PI/180),
+					   366.57*(M_PI/180),
+					    66.60*(M_PI/180),
+					   112.42*(M_PI/180),
+					   213.30*(M_PI/180);
+					   
+			this->b.tail(5) = this->b.head(5);
+	        }
 
 		// NOTE: THESE ARE INHERITED FROM ICUBBASE
 		bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum);
@@ -34,7 +54,9 @@ class PositionControl : public iCubBase
 		bool threadInit();
 		void run();
 		void threadRelease();
-//		void run() {} <--- TO BE DEFINED IN ANY CHILD CLASS
+		
+		Eigen::MatrixXd A;
+		Eigen::VectorXd b;
 };                                                                                                  // Semicolon needed after class declaration
 
 #endif
