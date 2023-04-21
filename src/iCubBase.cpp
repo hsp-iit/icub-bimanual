@@ -6,12 +6,10 @@
 iCubBase::iCubBase(const std::string &pathToURDF,
                    const std::vector<std::string> &jointList,
                    const std::vector<std::string> &portList,
- //                  const Eigen::Isometry3d        &torsoPose,
                    const std::string              &robotModel)
                    :
                    yarp::os::PeriodicThread(0.01),                                                  // Create thread to run at 100Hz
                    JointInterface(jointList, portList),                                             // Open communication with joint motors
- //                  _torsoPose(Eigen_to_iDynTree(torsoPose)),                                        // Pose of torso relative to world frame
                    _robotModel(robotModel),                                                         // iCub2, iCub3, ergoCub
                    q(Eigen::VectorXd::Zero(this->numJoints)),                                       // Set the size of the position vector
                    qdot(Eigen::VectorXd::Zero(this->numJoints)),                                    // Set the size of the velocity vector
