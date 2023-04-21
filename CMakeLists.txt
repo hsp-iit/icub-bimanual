@@ -30,3 +30,6 @@ include_directories(include)                                                    
 #################################### Executables to be compiled ####################################
 add_executable(command_server src/CommandServer.cpp src/CommandInterface.cpp src/JointInterface.cpp src/iCubBase.cpp src/PositionControl.cpp src/Utilities.cpp src/QPSolver.cpp src/CartesianTrajectory.cpp src/Payload.cpp)
 target_link_libraries(command_server Eigen3::Eigen iDynTree::idyntree-high-level ${YARP_LIBRARIES})
+
+add_executable(command_prompt src/CommandPrompt.cpp src/CommandInterface.cpp)
+target_link_libraries(command_prompt ${YARP_LIBRARIES})
