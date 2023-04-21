@@ -77,7 +77,7 @@ void PositionControl::run()
 				Eigen::MatrixXd B(2*this->numJoints + 10, this->numJoints);
 				B.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
 				B.block(  this->numJoints, 0, this->numJoints, this->numJoints) =  Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-				B.block(2*this->numJoints, 0, this->numJoints, this->numJoints) =  this->A; // Shoulder constraints
+				B.block(2*this->numJoints, 0,              10, this->numJoints) =  this->A; // Shoulder constraints
 				
 				// z = [   -dq_max  ]
 				//     [    dq_min  ]
@@ -96,6 +96,7 @@ void PositionControl::run()
 				{
 					std::cout << exception.what() << std::endl;                 // Print out the problem
 				}
+
 			}
 			else // this->robotModel == "ergoCub"
 			{
