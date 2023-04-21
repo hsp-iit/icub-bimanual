@@ -20,6 +20,7 @@ class PositionControl : public iCubBase
 		:
 	        iCubBase(pathToURDF, jointList, portList, robotModel)
 	        {
+	        
 	        	// Shoulder constraints for iCub 2
 			double c = 1.71;
 			this->A = Eigen::MatrixXd::Zero(10,this->numJoints);
@@ -30,7 +31,7 @@ class PositionControl : public iCubBase
 					 	   0, -1, -1;
 							   
 			this->A.block(5,10,5,3) = this->A.block(0,3,5,3);                           // Same constraint for right arm as left arm
-				
+			
 			this->b.head(5) << 347.00*(M_PI/180),
 					   366.57*(M_PI/180),
 					    66.60*(M_PI/180),
@@ -56,7 +57,7 @@ class PositionControl : public iCubBase
 		void threadRelease();
 		
 		Eigen::MatrixXd A;
-		Eigen::VectorXd b;
+		Eigen::Matrix<double,10,1> b;
 };                                                                                                  // Semicolon needed after class declaration
 
 #endif
