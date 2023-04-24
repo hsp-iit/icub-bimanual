@@ -60,6 +60,12 @@ void PositionControl::run()
 					try // to get the last solution from the QP solver
 					{
 						startPoint = last_solution().tail(this->numJoints); // Remove Lagrange multipliers (if they exist)
+						
+						for(int i = 0; i < this->numJoints; i++)
+						{
+						             if(startPoint(i) < lowerBound(i)) startPoint(i) = lowerBound(i) + 0.001; // Just above the lower bound
+							else if(startPoint(i) > upperBound(i)) startPoint(i) = upperBound(i) - 0.001; // Just below the upper bound
+						}
 					}
 					catch(const std::exception &exception)
 					{
@@ -90,7 +96,7 @@ void PositionControl::run()
 				try // to solve the QP problem
 				{
 					dq = QPSolver::solve(Eigen::MatrixXd::Identity(this->numJoints,this->numJoints),
-					                     -(desiredPosition - this->q), B, z, startPoint);
+					                     -(desiredPosition - this->qRef), B, z, startPoint);
 				}
 				catch(const std::exception &exception)
 				{
@@ -128,6 +134,12 @@ void PositionControl::run()
 				try // to get the previous solution
 				{
 					startPoint = QPSolver::last_solution().tail(this->numJoints); // Remove any Lagrange multipliers that may exist
+					
+					for(int i = 0; i < this->numJoints; i++)
+					{
+						     if(startPoint(i) < lowerBound(i)) startPoint(i) = lowerBound(i) + 0.001;
+						else if(startPoint(i) > upperBound(i)) startPoint(i) = upperBound(i) - 0.001;
+					}
 				}
 				catch(const std::exception &exception)
 				{
