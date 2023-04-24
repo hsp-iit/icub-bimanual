@@ -68,9 +68,8 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 			if(not this->driver.view(this->encoders)) throw std::runtime_error(errorMessage + "Unable to configure the encoders.");
 			else
 			{
-				double temp[this->numJoints];                                       // Temporary placeholder for encoder values
-				
-/*
+				double temp[this->numJoints];                                       // Temporary placeholder for encoder values			
+
 				// Make 5 attempts to read the encoders
 				for(int i = 0; i < 5; i++)
 				{
@@ -79,7 +78,6 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 						throw std::runtime_error(errorMessage + "Could not obtain encoder values in 5 attempts.");
 					}
 				}
-*/
 				
 				std::cout << "[INFO] [JOINT INTERFACE] Successfully configured the joint motors.\n";
 			}
