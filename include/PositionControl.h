@@ -15,7 +15,6 @@ class PositionControl : public iCubBase
 		PositionControl(const std::string              &pathToURDF,
 			        const std::vector<std::string> &jointList,
 			        const std::vector<std::string> &portList,
-//			        const Eigen::Isometry3d        &torsoPose,
 			        const std::string              &robotModel)
 		:
 	        iCubBase(pathToURDF, jointList, portList, robotModel)
@@ -41,23 +40,26 @@ class PositionControl : public iCubBase
 			this->b.tail(5) = this->b.head(5);
 	        }
 
-		// NOTE: THESE ARE INHERITED FROM ICUBBASE
+		//////////////////////// Inherited from iCubBase class ////////////////////////////
 		bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum);
 		
 		Eigen::Matrix<double,12,1> track_cartesian_trajectory(const double &time);
 		
 		Eigen::VectorXd track_joint_trajectory(const double &time);
+		///////////////////////////////////////////////////////////////////////////////////
 		
 	protected:
 		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
 
-		// NOTE; THESE ARE INHERITED FROM PERIODICTHREAD
+		/////////////////////// Inherited from PeriodicThread class ///////////////////////
 		bool threadInit();
 		void run();
 		void threadRelease();
+		//////////////////////////////////////////////////////////////////////////////////
 		
-		Eigen::MatrixXd A;
-		Eigen::Matrix<double,10,1> b;
+		Eigen::MatrixXd A;                                                                  // Constraint matrix for the iCub2
+		Eigen::Matrix<double,10,1> b;                                                       // Constraint vector for the iCub2
+		
 };                                                                                                  // Semicolon needed after class declaration
 
 #endif
