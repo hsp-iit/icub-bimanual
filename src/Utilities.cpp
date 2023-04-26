@@ -1,5 +1,29 @@
 #include <Utilities.h>
 
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                  Convert a std::vector object to an Eigen::Isometry3d object                  //    
+///////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Isometry3d transform_from_vector(const std::vector<double> &input)
+{
+	if(input.size() != 6)
+	{
+		std::string errorMessage = "[ERROR] transform_from_vector(): 6 elements required, but your argument had " + std::to_string(input.size()) + " elements.\n";
+		                         
+		throw std::invalid_argument(errorMessage);
+	}
+
+	Eigen::Translation3d translation(input[0],input[1],input[2]);
+	
+	double angle = sqrt(input[3]*input[3] + input[4]*input[4] + input[5]*input[5]);
+	
+	Eigen::AngleAxisd angleAxis;
+	
+	if(angle == 0) angleAxis = Eigen::AngleAxisd(0,Eigen::Vector3d::UnitX());
+	else           angleAxis = Eigen::AngleAxisd(angle, Eigen::Vector3d(input[3]/angle, input[4]/angle, input[5]/angle));
+	
+	return Eigen::Isometry3d(translation*angleAxis);
+}
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //               Convert a list of floating point numbers to an Eigen::Vector object              //
 ////////////////////////////////////////////////////////////////////////////////////////////////////

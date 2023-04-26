@@ -7,7 +7,7 @@
 #ifndef UTILITIES_H_
 #define UTILITIES_H_
 
-#include <Eigen/Core>                                                                               // Eigen::Vector
+#include <Eigen/Geometry>                                                                           // Eigen::Isometry, Eigen::Vector
 #include <iostream>                                                                                 // std::cerr and std::cout
 #include <map>                                                                                      // std::map
 #include <vector>                                                                                   // std::vector
@@ -19,6 +19,8 @@ struct JointTrajectory
 	std::vector<Eigen::VectorXd> waypoints;
 	std::vector<double> times;
 };
+
+Eigen::Isometry3d transform_from_vector(const std::vector<double> &input);
 
 Eigen::VectorXd vector_from_bottle(const yarp::os::Bottle *bottle);                                 // Convert a list of floating point numbers to an Eigen::Vector object
 

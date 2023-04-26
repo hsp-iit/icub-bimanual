@@ -27,7 +27,6 @@ class iCubBase : public QPSolver,
 		iCubBase(const std::string              &pathToURDF,
 			 const std::vector<std::string> &jointList,
 		         const std::vector<std::string> &portList,
-//		         const Eigen::Isometry3d        &torsoPose,
 		         const std::string              &robotModel);
 
 		bool update_state();                                                                // Read encoders, compute kinematics & dynamics
@@ -79,10 +78,11 @@ class iCubBase : public QPSolver,
 		std::string _robotModel;                                                            // iCub2, iCub3, or ergoCub
 		
 		enum ControlSpace {joint, cartesian} controlSpace;
-	
+		
 		bool isFinished = false;                                                            // For regulating control actions	
 		
 		double startTime, endTime;                                                          // For regulating the control loop
+		
 		double dt = 0.01;
 			
 		// Kinematics & dynamics
@@ -122,7 +122,6 @@ class iCubBase : public QPSolver,
 		
 		// Kinematic & dynamic modelling
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
-//		iDynTree::Transform _torsoPose;                                                     // Needed for inverse dynamics
 		
 		// Functions
 		iDynTree::Transform Eigen_to_iDynTree(const Eigen::Isometry3d &T);                  // Converts from Eigen to iDynTree

@@ -419,7 +419,7 @@ bool iCubBase::release_object()
 	else
 	{
 		std::cout << "[INFO] [ICUB BASE] release_object(): "
-		          << "You are not currently grasping!" << std::endl;
+		          << "I'm not grasping anything!" << std::endl;
 		
 		return false;
 	}
@@ -431,10 +431,17 @@ bool iCubBase::release_object()
 bool iCubBase::move_object(const Eigen::Isometry3d &pose,
                            const double &time)
 {
-	if(time < 0)
+	if(not this->isGrasping)
 	{
 		std::cerr << "[ERROR] [ICUB BASE] move_object(): "
-		          << "Time of " << time << " cannot be negative!" << std::endl;
+		          << "I am not grasping anything!\n";
+		
+		return false;
+	}		         
+	else if(time < 0)
+	{
+		std::cerr << "[ERROR] [ICUB BASE] move_object(): "
+		          << "Time of " << time << " cannot be negative!\n";
 		          
 		return false;
 	}
