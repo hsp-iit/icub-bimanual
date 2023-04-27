@@ -20,10 +20,14 @@ class CommandServer : public CommandInterface
 	public:
 	
 		CommandServer(PositionControl *_robot,
-		              std::map<std::string,JointTrajectory> *_jointConfigMap)
+		              std::map<std::string,JointTrajectory> *_jointActionMap,
+		              std::map<std::string,CartesianMotion> *_leftHandMap,
+		              std::map<std::string,CartesianMotion> *_rightHandMap)
 		             :
 		             robot(_robot),
-		             jointConfigMap(_jointConfigMap) {}        
+		             jointActionMap(_jointActionMap),
+		             leftHandMap(_leftHandMap),
+		             rightHandMap(_rightHandMap) {}        
 		
 		////////// NOTE: These are directly copied from CommandInterface.h //////////
 		
@@ -110,7 +114,64 @@ class CommandServer : public CommandInterface
 		// Move hands by a prescribed action
 		bool move_hands_by_action(const std::string& actionName)
 		{
-			return false;
+			// Variables used in this scope
+			std::vector<Eigen::Isometry3d> leftWaypoints, rightWaypoints;
+			std::vector<double> times;
+			Type type;
+			
+			auto temp = this->leftHandMap->find(actionName);
+			
+			if(temp == this->leftHandMap->end())
+			{
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
+				          << "Could not find the action named " << actionName
+				          << " for the left hand.\n";
+				
+				return false;
+			}
+			else
+			{
+				leftWaypoints = temp->second.waypoints;
+				times = temp->second.times;
+				type = temp->second.type;
+			}
+			
+			temp = this->rightHandMap->find(actionName);
+			
+			if(temp == this->rightHandMap->end())
+			{
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
+				          << "Could not find the action named " << actionName
+				          << " for the right hand.\n";
+				
+				return false;
+			}
+			else	rightWaypoints = temp->second.waypoints;
+			
+			if(type == absolute)
+			{
+				std::cout << "NOT YET PROGRAMMED.\n";
+				return false;
+			}
+			else // type == relative
+			{
+				Eigen::Isometry3d desiredLeft, desiredRight;
+				
+				try
+				{
+					desiredLeft  = this->robot->hand_pose("left")*leftWaypoints[0];
+					desiredRight = this->robot->hand_pose("right")*rightWaypoints[0];
+					
+					this->robot->move_to_pose(desiredLeft,desiredRight,times[0]);
+					
+					return true;
+				}
+				catch(const std::exception &exception)
+				{
+					std::cout << exception.what() << std::endl;
+					return false;
+				}
+			}        
 		}
 
 		// Move the joints to a prescribed joint configuration
@@ -122,9 +183,9 @@ class CommandServer : public CommandInterface
 		// Move the joints to a prescribed joint position
 		bool move_to_named_configuration(const std::string& configName)
 		{
-			auto jointConfig = this->jointConfigMap->find(configName);
+			auto jointConfig = this->jointActionMap->find(configName);
 			
-			if(jointConfig == this->jointConfigMap->end())
+			if(jointConfig == this->jointActionMap->end())
 			{
 				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_to_named_configuration(): "
 				          << "Could not find a joint configuration named "
@@ -154,8 +215,9 @@ class CommandServer : public CommandInterface
 		
 		PositionControl *robot;                                                             // Pointer to robot object
 		
-		std::map<std::string, JointTrajectory> *jointConfigMap;                             // Map of prescribed joint configurations
+		std::map<std::string, JointTrajectory> *jointActionMap;                             // Map of prescribed joint configurations
 
+		std::map<std::string, CartesianMotion> *leftHandMap, *rightHandMap;
 };                                                                                                  // Semicolon needed after class declaration
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -190,24 +252,61 @@ int main(int argc, char* argv[])
 	{
 		// Get the joint list from the config file
 		yarp::os::Bottle* bottle; bottle = parameter.find("joint_names").asList();
+		
 		if(bottle == nullptr)
 		{
 			std::cerr << errorMessage << "No list of joint names was specified in " << pathToConfig << ".\n";
 			return 1;
 		}
+		
 		std::vector<std::string> jointNames = string_from_bottle(bottle);                   // Function specified in Utils.h
 
-		// Load the predefined joint configurations in to a std::map object
-		std::map<std::string, JointTrajectory> jointConfigMap;                              // NOTE: JointTrajectory is a data structure in Utils.H
-		bottle->clear(); bottle = &parameter.findGroup("JOINT_CONFIGURATIONS");
+		// Load the joint-space actions from the config file
+		std::map<std::string, JointTrajectory> jointActionMap;                              // NOTE: JointTrajectory is a data structure in Utils.H
+		
+		bottle->clear(); bottle = &parameter.findGroup("JOINT_SPACE_ACTIONS");
+		
 		if(bottle == nullptr)
 		{
-			std::cerr << errorMessage << "No group called JOINT_CONFIGURATIONS could be found in "
+			std::cerr << errorMessage << "No group called JOINT_SPACE_ACTIONS could be found in "
 			          << pathToConfig << ".\n";
+			
+			return 1;
 		}
-		if(not load_joint_configurations(bottle,jointConfigMap)) return 1;
+		if(not load_joint_configurations(bottle,jointActionMap)) return 1;
 		
-		// Load the predefined Cartesian actions in to a std::map object
+		// Load the left hand actions from the config file
+		
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("names").asList();
+		
+		std::vector<std::string> nameList = string_from_bottle(bottle);
+		
+		std::map<std::string, CartesianMotion> leftHandMap;
+		
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("left").asList();
+		
+		if(bottle == nullptr)
+		{
+			std::cerr << errorMessage << "No list called 'left' in the CARTESIAN_ACTIONS group "
+			                          << "could be found in " << pathToConfig << ".\n";
+			return 1;
+		}
+		
+		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;
+		
+		// Load the right hand actions from the config file
+		std::map<std::string, CartesianMotion> rightHandMap;
+		
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("right").asList();
+		
+		if(bottle == nullptr)
+		{
+			std::cerr << errorMessage << "No list called 'right' in the CARTESIAN_ACTIONS group "
+			                          << "could be found in " << pathToConfig << ".\n";
+			return 1;
+		}
+		
+		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;
 		
 		/************** NEED TO LOAD NAME AS AN ARGUMENT **********************/
 		PositionControl robot(pathToURDF, jointNames, portList, "iCub2");                   // Start up the robot
@@ -225,7 +324,7 @@ int main(int argc, char* argv[])
 		// Establish communication over YARP
 		yarp::os::Network yarp;
 		yarp::os::Port port;
-		CommandServer commandServer(&robot, &jointConfigMap);                               // Create command server
+		CommandServer commandServer(&robot, &jointActionMap, &leftHandMap, &rightHandMap);  // Create command server
 		commandServer.yarp().attachAsServer(port);
 		
 		if(not port.open("/commandServer"))

@@ -28,10 +28,15 @@ int main(int argc, char* argv[])
 	
 	// Load the list of predefined joint configuration names
 	yarp::os::Property parameter; parameter.fromConfigFile(argv[1]);                            // Load the properties from the config file
-	yarp::os::Bottle* bottle = parameter.findGroup("JOINT_CONFIGURATIONS").find("names").asList();
+	yarp::os::Bottle* bottle = parameter.findGroup("JOINT_SPACE_ACTIONS").find("names").asList();
 	std::vector<std::string> names = string_from_bottle(bottle);                                // Get the list of the configuration names
 	for(int i = 0; i < names.size(); i++) commandList.emplace(names[i],0);                      // Put them in to the map
-		
+	
+	// Load the list of Cartesian actions
+	bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("names").asList();
+	names = string_from_bottle(bottle);
+	for(int i = 0; i < names.size(); i++) commandList.emplace(names[i],1);
+	
 	yarp::os::Network yarp; 
 	
 	// Connect this client port with the command server       
@@ -89,9 +94,10 @@ int main(int argc, char* argv[])
 				}
 				else if(blah->second == 1)                                          // It's a Cartesian command
 				{
-					std::cout << "Not yet programmed!\n";
+					if(client.move_hands_by_action(command)) output.addString("Capito");
+					else				         output.addString("Problema");
 				}
-				else	output.addString("Problema");
+				else output.addString("Problema");
 			}
 		}
 			

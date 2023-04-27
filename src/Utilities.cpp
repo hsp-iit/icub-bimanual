@@ -43,6 +43,41 @@ Eigen::VectorXd vector_from_bottle(const yarp::os::Bottle *bottle)
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //              Convert a list of floating point numbers to an Eigen::Isometry3d object           //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Isometry3d transform_from_bottle(const yarp::os::Bottle *bottle)
+{
+	if(bottle->size() != 6)
+	{
+		throw std::invalid_argument("[ERROR] transform_from_bottle(): Expected 6 elements but there was " + std::to_string(bottle->size()) + ".");
+	}
+	
+	double pos[3];
+	double rot[3];
+	
+	for(int i = 0; i < 3; i++)
+	{
+		yarp::os::Value posValue = bottle->get(i);
+		yarp::os::Value rotValue = bottle->get(i+3);
+		
+		if(not posValue.isFloat64() or not rotValue.isFloat64())
+		{
+			throw std::invalid_argument("[ERROR] transform_from_bottle(): The list contains a non-floating point element.");
+		}
+		else
+		{
+			pos[i] = posValue.asFloat64();
+			rot[i] = rotValue.asFloat64();
+		}
+	}
+	
+	return Eigen::Translation3d(pos[0],pos[1],pos[2])
+	      *Eigen::AngleAxisd(rot[0],Eigen::Vector3d::UnitX())
+	      *Eigen::AngleAxisd(rot[1],Eigen::Vector3d::UnitY())
+	      *Eigen::AngleAxisd(rot[2],Eigen::Vector3d::UnitZ());
+}
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                     Convert a list of strings to a std::vector<std:string>>                    //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 std::vector<std::string> string_from_bottle(const yarp::os::Bottle *bottle)
@@ -112,6 +147,7 @@ bool load_joint_configurations(const yarp::os::Bottle *bottle,
 
 		// Put the waypoints and times together in a single data structure
 		JointTrajectory temp;
+		
 		for(int j = 0; j < points->size(); j++)
 		{	
 			temp.waypoints.push_back(vector_from_bottle(points->get(j).asList()));
@@ -119,6 +155,86 @@ bool load_joint_configurations(const yarp::os::Bottle *bottle,
 		}
 		
 		map.emplace(configName[i],temp);                                                    // Add to map so we can search by name later
+	}
+	
+	return true;
+}
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                Put Cartesian trajectories from the config file in to a std::map               //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool load_cartesian_trajectories(const yarp::os::Bottle *bottle,
+                                 std::vector<std::string> nameList,
+                                 std::map<std::string,CartesianMotion> &map)
+{
+	// Search through all the names
+	for(int i = 0; i < nameList.size(); i++)
+	{
+		yarp::os::Bottle *vial = bottle->find(nameList[i]).asList();                        // Load the Cartesian points associated with the name
+		
+		if(vial == nullptr)
+		{
+			std::cout << "[WARNING] load_cartesian_trajectories(): Could not find the "
+			          << "trajectory named " << nameList[i] << ".\n";
+			
+			continue;                                                                   // Continue to next name in the list
+		}
+		
+		std::string type = vial->find("type").asString();                                   // Get the type
+		
+//		if(strcmp(&type,"absolute") != 0 or strcmp(&type,"relative") != 0)		
+		if(std::string(type) != "absolute" and std::string(type) != "relative")
+		{
+			std::cerr << "[ERROR] load_cartesian_trajectories(): Type must be 'relative' or "
+			          << "'absolute' but the '" << nameList[i] << "' trajectory was '" << type << "'.\n";
+			
+			return false;
+		}
+		
+		// Get all the waypoints
+		yarp::os::Bottle *points = vial->find("points").asList();
+		
+		if(points == nullptr)
+		{
+			std::cerr << "[ERROR] load_cartesian_trajectories(): There doesn't appear to be "
+			          << "any waypoints for '" << nameList[i] << "'.\n";
+			
+			return false;
+		}
+	
+		// Get the time for this trajectory
+		yarp::os::Bottle* times = vial->find("times").asList();
+		if(times == nullptr)
+		{
+			std::cerr << "[ERROR] load_cartesian_trajectories(): The Cartesian trajectory '"
+			           << nameList[i] << "' does not appear to have any times listed.\n";
+			
+			return false;
+		}
+		
+		// Make sure the number of elements match
+		if(times->size() != points->size())
+		{
+			std::cerr << "[ERROR] load_cartesian_trajectories(): Number of elements for "
+			          << nameList[i] << " do not match. There were " << points->size()
+			          << " waypoints and " << times->size() << " times.\n";
+			
+			return false;
+		}
+		
+		// Put them all together in a single data structure
+		CartesianMotion temp;
+		
+		if(type == "absolute") temp.type = absolute;
+		else                   temp.type = relative;
+		
+		for(int j = 0; j < points->size(); j++)
+		{
+			temp.waypoints.push_back(transform_from_bottle(points->get(j).asList()));
+			temp.times.push_back(times->get(j).asFloat64());
+		}
+		
+		map.emplace(nameList[i],temp);                                                      // Put it in the map
 	}
 	
 	return true;

@@ -66,8 +66,9 @@ Eigen::VectorXd QPSolver::solve(const Eigen::MatrixXd &H,
 	{
 		std::string message = "[ERROR] [QP SOLVER] solve(): Dimensions of arguments do not match. "
 		                      "The Hessian was " + std::to_string(H.rows()) + "x" + std::to_string(H.cols()) + ", "
-		                      "the f vector was " + std::to_string(f.size()) + "x1, and "
-		                      "the constraint matrix B had " + std::to_string(B.cols()) + " columns.";
+		                      "the f vector was " + std::to_string(f.size()) + "x1, "
+		                      "the constraint matrix B had " + std::to_string(B.cols()) + " columns, and "
+		                      "the start point x0 was " + std::to_string(x0.size()) + "x1.";
 
 		throw std::runtime_error(message);
 	}

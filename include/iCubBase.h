@@ -62,6 +62,8 @@ class iCubBase : public QPSolver,
 		Eigen::Matrix<double,6,1> pose_error(const Eigen::Isometry3d &desired,
 		                                     const Eigen::Isometry3d &actual);
 		                                     
+		Eigen::Isometry3d hand_pose(const std::string &which);
+		                                     
 		bool set_cartesian_gains(const double &proportional, const double &derivative);
 		               
 		// Grasp control functions
@@ -87,15 +89,19 @@ class iCubBase : public QPSolver,
 			
 		// Kinematics & dynamics
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
+		
 		Eigen::MatrixXd J, M, invM;                                                         // Jacobian, inertia, and inverse of inertia
 		
 		// Joint control
 		double kp = 1.0;                                                                    // Default proportional gain
+		
 		double kd = 2*sqrt(this->kp);                                                       // Theoretically optimal damping
+		
 		std::vector<iDynTree::CubicSpline> jointTrajectory;                                 // As it says
 		
 		// Cartesian control
 		double maxDamping = 0.01;                                                           // For singularity avoidance
+		
 		double threshold  = 1e-04;                                                          // For activating singularity avoidance
 		
 		Eigen::Matrix<double,6,6> gainTemplate = (Eigen::MatrixXd(6,6) << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -105,17 +111,24 @@ class iCubBase : public QPSolver,
 		                                                                  0.0, 0.0, 0.0, 0.0, 0.1, 0.0,
 		                                                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.1).finished();                    
 		Eigen::Matrix<double,6,6> K = 1*this->gainTemplate;
+		
 		Eigen::Matrix<double,6,6> D = 2*this->gainTemplate;                                 // Theoretically optimal: kd >= 2*sqrt(kp)
+		
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Trajectory generators for the hands
+		
 		Eigen::Isometry3d leftPose, rightPose;                                              // Left and right hand pose
 		
 		Eigen::VectorXd desiredConfiguration;
 		
 		// Grasp control
 		bool isGrasping = false;
+		
 		Eigen::Matrix<double,6,12> G;                                                       // Grasp matrix
+		
 		Eigen::Matrix<double,6,12> C;                                                       // Constraint matrix
+		
 		Payload payload;                                                                    // Class for representing object being held
+		
 		CartesianTrajectory payloadTrajectory;
 		
 	private:

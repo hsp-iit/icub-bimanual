@@ -560,6 +560,16 @@ bool iCubBase::set_joint_gains(const double &proportional, const double &derivat
 		return true;
 	}
 }
+  
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                               Return the pose of a given hand                                 //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Isometry3d iCubBase::hand_pose(const std::string &which)
+{
+	     if(which == "left")  return this->leftPose;
+	else if(which == "right") return this->rightPose;
+	else throw std::invalid_argument("[ERROR] [iCUB BASE] hand_pose(): Expected 'left' or 'right' but the argument was '"+which+"'.");
+}
 
 /*
 iCubBase::iCubBase(const std::string              &pathToURDF,
