@@ -77,6 +77,12 @@ int main(int argc, char* argv[])
 			output.addString("Arrivederci");
 			active = false;
 		}
+		else if(command == "stop")
+		{
+			output.addString("Fermata");
+			
+			client.stop();
+		}
 		else
 		{
 			auto blah = commandList.find(command);
@@ -89,13 +95,13 @@ int main(int argc, char* argv[])
 			{
 				if(blah->second == 0)                                               // It's a joint command
 				{
-					if(client.move_to_named_configuration(command)) output.addString("Capito");
-					else					        output.addString("Problema");
+					if(client.perform_joint_space_action(command)) output.addString("Capito");
+					else output.addString("Problema");
 				}
 				else if(blah->second == 1)                                          // It's a Cartesian command
 				{
-					if(client.move_hands_by_action(command)) output.addString("Capito");
-					else				         output.addString("Problema");
+					if(client.perform_cartesian_action(command)) output.addString("Capito");
+					else output.addString("Problema");
 				}
 				else output.addString("Problema");
 			}
