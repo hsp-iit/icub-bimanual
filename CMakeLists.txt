@@ -5,7 +5,7 @@ project(icub-bimanual)							                            # ${PROJECT_NAME}
 # cmake -DCMAKE_BUILD_TYPE=Release ..
 
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Debug)                                                                 # Release = Optimised
+	set(CMAKE_BUILD_TYPE Release)                                                               # Release = Optimised
 endif()
 
 ################################## Necessary packages to compile ###################################
