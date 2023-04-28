@@ -30,26 +30,181 @@ class CommandServer : public CommandInterface
 		             rightHandMap(_rightHandMap) {}        
 		
 		////////// NOTE: These are directly copied from CommandInterface.h //////////
-		
-		// Move the hands to grasp position
-		bool grasp_object(const std::vector<double>& handPoses)
+
+		// Activate the grasp constraints
+		bool grasp()
 		{
-			if(handPoses.size() == 12)
+			std::cout << "Not yet programmed!\n";
+			
+			return false;
+		}
+
+		// Query if the robot is finished moving
+		bool is_finished() const { return this->robot->is_finished(); }
+		
+		// Move the hands by prescribed action
+		bool perform_cartesian_action(const std::string& actionName)
+		{
+			// Variables used in this scope
+			std::vector<Eigen::Isometry3d> leftWaypoints, rightWaypoints;               // Cartesian waypoints for the hands
+			std::vector<double> times;                                                  // Time to reach each waypoint
+			Type type;                                                                  // Enumeration; relative or absolute
+			
+			// Find the left hand motion in the list
+			auto temp = this->leftHandMap->find(actionName);
+			
+			if(temp == this->leftHandMap->end())
 			{
-				return true;
-			}
-			else			
-			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] grasp_object(): "
-					  << "Expected 12 elements for the input, but it had "
-					  << handPoses.size() << ".\n";
-					  
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
+				          << "Could not find the action named " << actionName
+				          << " for the left hand.\n";
+				
 				return false;
+			}
+			else
+			{
+				leftWaypoints = temp->second.waypoints;
+				times         = temp->second.times;
+				type          = temp->second.type;
+			}
+			
+			// Find the right hand motion in the list
+			temp = this->rightHandMap->find(actionName);
+			
+			if(temp == this->rightHandMap->end())
+			{
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
+				          << "Could not find the action named " << actionName
+				          << " for the right hand.\n";
+				
+				return false;
+			}
+			else	rightWaypoints = temp->second.waypoints;
+			
+			if(type == absolute)
+			{
+				std::cout << "NOT YET PROGRAMMED.\n";
+				
+				return false;
+			}
+			else // type == relative
+			{
+				try
+				{
+					// NOTE: For now assume only 1 waypoint
+					
+					Eigen::Isometry3d desiredLeft  = this->robot->hand_pose("left")*leftWaypoints[0];   // Transform to base of robot
+					Eigen::Isometry3d desiredRight = this->robot->hand_pose("right")*rightWaypoints[0]; // Transform to base of robot
+					
+					std::cout << "Here is the desired left hand pose:\n";
+					std::cout << desiredLeft.matrix() << std::endl;
+					
+					std::cout << "Here is the desired right hand pose:\n";
+					std::cout << desiredRight.matrix() << std::endl;
+					
+					this->robot->move_to_pose(desiredLeft,desiredRight,times[0]);     // Send the commands onward
+					
+					return true;
+				}
+				catch(const std::exception &exception)
+				{
+					std::cout << exception.what() << std::endl;                       // Print out the problem
+					
+					return false;
+				}
+			}  
+		}
+
+		// Move a grasped object by a prescribed action
+		bool perform_grasp_action(const std::string& actionName)
+		{
+			std::cout << "NOT YET PROGRAMMED\n";
+			
+			return false;
+		}
+
+		// Move the configuration of the joints by a prescribed action
+		bool perform_joint_space_action(const std::string& actionName)
+		{
+			auto jointConfig = this->jointActionMap->find(actionName);
+			
+			if(jointConfig == this->jointActionMap->end())
+			{
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_to_named_configuration(): "
+				          << "Could not find a joint configuration named "
+				          << actionName << " in the list.\n";
+				
+				return false;
+			}
+			else
+			{
+				return this->robot->move_to_positions(jointConfig->second.waypoints,
+				                                      jointConfig->second.times);
+				return true;
 			}
 		}
 
-		// Query whether the robot has finished executing an action
-		bool is_finished() { return this->robot->is_finished(); }
+		// Move the hands to given poses
+		bool move_hands_to_pose(const yarp::sig::Matrix& leftPose,
+		                        const yarp::sig::Matrix& rightPose,
+		                        const double time)
+		{
+			if(leftPose.rows() != 4 or leftPose.cols() != 4)
+			{
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_to_pose(): "
+				          << "Expected a 4x4 matrix for the left hand pose, but "
+				          << "it was " << leftPose.rows() << "x" << leftPose.cols() << ".\n";
+				
+				return false;
+			}
+			
+			if(rightPose.rows() != 4 or rightPose.cols() != 4)
+			{
+				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_to_pose(): "
+				          << "Expected a 4x4 matrix for the right hand pose, but "
+				          << "it was " << rightPose.rows() << "x" << rightPose.cols() << ".\n";
+				
+				return false;
+			}
+			
+			Eigen::Matrix4d temp;
+			
+			// Convert yarp::sig::Matrix to Eigen::Isometry3d
+			for(int i = 0; i < 4; i++)
+			{
+				for(int j = 0; j < 4; j++) temp(i,j) = leftPose[i][j];
+			}
+		
+			Eigen::Isometry3d desiredLeft(temp);
+			
+			// Convert yarp::sig::Matrix to Eigen::Isometry3d
+			for(int i = 0; i < 4; i++)
+			{
+				for(int j = 0; j < 4; j++) temp(i,j) = leftPose[i][j];
+			}
+			
+			Eigen::Isometry3d desiredRight(temp);
+			
+			return this->robot->move_to_pose(desiredLeft, desiredRight, time);	
+		}
+
+		// Move the joints
+		bool move_joints_to_position(const std::vector<double>& position, const double time)
+		{
+			return this->robot->move_to_position(Eigen::VectorXd::Map(&position[0], position.size()), time);
+		}
+
+		bool move_object_to_pose(const yarp::sig::Matrix& pose, const double time)
+		{
+			std::cout << "NOT YET PROGRAMMED.\n";
+			
+			return false;
+		}
+
+		bool release_object() const { return this->robot->release_object(); }
+
+		//void stop() { this->robot.halt(); }
+
 
 		// Move a grasped object to a pose
 		bool move_object_to_pose(const std::vector<double>& pose, const double time)
@@ -78,137 +233,6 @@ class CommandServer : public CommandInterface
 				
 				return false;
 			}
-		}
-
-		// Move the hands to given poses
-		bool move_hands_to_pose(const std::vector<double>& poses, const double time)
-		{
-			if(poses.size() == 12)
-			{
-				Eigen::Isometry3d leftPose, rightPose;
-				
-				try
-				{
-					leftPose = transform_from_vector({poses.begin(),poses.begin()+6});
-					
-					rightPose = transform_from_vector({poses.begin()+6,poses.begin()+12});
-					
-					return this->robot->move_to_pose(leftPose, rightPose, time);
-				}
-				catch(std::exception &exception)
-				{
-					std::cout << exception.what() << std::endl;
-					
-					return false;
-				}
-			}
-			else
-			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_to_pose(): "
-				          << "Expected 12 elements for the argument, but it had " << poses.size() << ".\n";
-				
-				return false;
-			}
-		}
-
-		// Move hands by a prescribed action
-		bool move_hands_by_action(const std::string& actionName)
-		{
-			// Variables used in this scope
-			std::vector<Eigen::Isometry3d> leftWaypoints, rightWaypoints;
-			std::vector<double> times;
-			Type type;
-			
-			auto temp = this->leftHandMap->find(actionName);
-			
-			if(temp == this->leftHandMap->end())
-			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
-				          << "Could not find the action named " << actionName
-				          << " for the left hand.\n";
-				
-				return false;
-			}
-			else
-			{
-				leftWaypoints = temp->second.waypoints;
-				times = temp->second.times;
-				type = temp->second.type;
-			}
-			
-			temp = this->rightHandMap->find(actionName);
-			
-			if(temp == this->rightHandMap->end())
-			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
-				          << "Could not find the action named " << actionName
-				          << " for the right hand.\n";
-				
-				return false;
-			}
-			else	rightWaypoints = temp->second.waypoints;
-			
-			if(type == absolute)
-			{
-				std::cout << "NOT YET PROGRAMMED.\n";
-				return false;
-			}
-			else // type == relative
-			{
-				Eigen::Isometry3d desiredLeft, desiredRight;
-				
-				try
-				{
-					desiredLeft  = this->robot->hand_pose("left")*leftWaypoints[0];
-					desiredRight = this->robot->hand_pose("right")*rightWaypoints[0];
-					
-					this->robot->move_to_pose(desiredLeft,desiredRight,times[0]);
-					
-					return true;
-				}
-				catch(const std::exception &exception)
-				{
-					std::cout << exception.what() << std::endl;
-					return false;
-				}
-			}        
-		}
-
-		// Move the joints to a prescribed joint configuration
-		bool move_to_configuration(const std::vector<double>& jointConfiguration, const double time)
-		{
-			return this->robot->move_to_position(Eigen::VectorXd::Map(&jointConfiguration[0], jointConfiguration.size()), time);
-		}
-			
-		// Move the joints to a prescribed joint position
-		bool move_to_named_configuration(const std::string& configName)
-		{
-			auto jointConfig = this->jointActionMap->find(configName);
-			
-			if(jointConfig == this->jointActionMap->end())
-			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_to_named_configuration(): "
-				          << "Could not find a joint configuration named "
-				          << configName << " in the list.\n";
-				
-				return false;
-			}
-			else
-			{
-				return this->robot->move_to_positions(jointConfig->second.waypoints,
-				                                      jointConfig->second.times);
-			}
-		}	
-
-		// Release an object that has been grasped
-		bool release_object() { return this->robot->release_object(); }
-
-		// Stop the robot moving immediately
-		bool stop()
-		{
-			// NOTE TO SELF: I should either set as void, or do some logic check...
-			this->robot->halt();
-			return true;
 		}	
 	    
 	private:
@@ -308,7 +332,7 @@ int main(int argc, char* argv[])
 		
 		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;
 		
-		/************** NEED TO LOAD NAME AS AN ARGUMENT **********************/
+		////////////////////// NEED TO LOAD NAME AS AN ARGUMENT /////////////////////////////
 		PositionControl robot(pathToURDF, jointNames, portList, "iCub2");                   // Start up the robot
 		
 		// Set the Cartesian gains
