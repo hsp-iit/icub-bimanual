@@ -17,22 +17,37 @@ fi
 tmux new-session -d -s $SESSION                                                          # Start new session with given name
 tmux rename-window -t 0 'Main'                                                           # Give a name to this window
 
-# Split window
+# Divide up the screen (default pane 0)
+#######################################
+#                  #         2        #
+#        0         #                  #
+#                  ####################
+#                  #                  #
+####################         3        #
+#                  #                  #
+#        1         ####################
+#                  #         4        #
+#                  #                  #
+#######################################
+tmux split-window -h                                                                     # Pane 2
+tmux split-window -v                                                                     # Pane 3
+tmux resize-pane -U 5                                                                    # Move it up
+tmux split-window -v                                                                     # Pane 4
+tmux resize-pane -U 5                                                                    # Make the panel a little bigger
+tmux select-pane -t 0                                                                    # Go back to 0
+tmux split-window -v                                                                     # Pane 1
 
 # Split window and run YARP
-tmux split-window -h                                                                     # Horizontal split
+tmux select-pane -t 2
 tmux send-keys -t $SESSION "yarpserver --write" Enter                                    # Start up yarp
 
 # Split right pane, launch GAZEBO
-tmux split-window -v                                                                     # Vertical split
-tmux resize-pane -U 5                                                                    # Move it up
+tmux select-pane -t 3
 tmux send-keys -t $SESSION "gazebo $WORLD" Enter                                         # Launch the given sdf file
 
-# Split the right pane, launch the command server
-tmux split-window -v                                                                     # Vertical split
-tmux resize-pane -U 5                                                                    # Make the panel a little bigger
+# Split the pane, launch the command server
+tmux select-pane -t 4
 tmux send-keys -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $PORT $URDF $CONFIG" Enter
-
 
 tmux attach-session -t $SESSION:0                                                        # REQUIRED or the above won't execute
 
