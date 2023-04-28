@@ -16,7 +16,7 @@ iCubBase::iCubBase(const std::string &pathToURDF,
                    J(Eigen::MatrixXd::Zero(12,this->numJoints)),                                    // Set the size of the Jacobian matrix
                    M(Eigen::MatrixXd::Zero(this->numJoints,this->numJoints)),                       // Set the size of the inertia matrix
                    invM(Eigen::MatrixXd::Zero(this->numJoints,this->numJoints)),                    // Set the size of the inverse inertia
-                   desiredConfiguration(Eigen::VectorXd::Zero(this->numJoints))                     // Desired configuration when running Cartesian control
+                   desiredPosition(Eigen::VectorXd::Zero(this->numJoints))                          // Desired configuration when running Cartesian control
 {
 	iDynTree::ModelLoader loader;
 	
@@ -31,7 +31,7 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 	{
 		iDynTree::Model temp = loader.model();
 		
-		// Add custom hand frames based on the model of the robot
+		// Add custom hand frames and base/torso pose based on the model
 		if(this->_robotModel == "iCub2")
 		{
 			temp.addAdditionalFrameToLink("l_hand", "left",
@@ -41,6 +41,9 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 			temp.addAdditionalFrameToLink("r_hand", "right",
 						      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,M_PI),
 						                          iDynTree::Position(-0.05765, -0.00556, 0.01369)));
+
+			this->basePose = iDynTree::Transform(iDynTree::Rotation::RPY(0,0,-M_PI),
+			                                     iDynTree::Position(0,0,0));
 		}
 		else if(this->_robotModel == "iCub3")
 		{
@@ -54,6 +57,9 @@ iCubBase::iCubBase(const std::string &pathToURDF,
                 	temp.addAdditionalFrameToLink("r_hand_palm", "right",
                 				      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
                 				                          iDynTree::Position(-0.00387, -0.00280, -0.0597)));
+			
+			this->basePose = iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
+			                                     iDynTree::Position(0,0,0));
 		}
 		else
 		{	
@@ -121,7 +127,7 @@ bool iCubBase::update_state()
 		}
 
 		// Put them in to the iDynTree class to solve the kinematics and dynamics
-		if(this->computer.setRobotState(iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),iDynTree::Position(0,0,0)),
+		if(this->computer.setRobotState(this->basePose,
 		                                tempPosition,
 		                                iDynTree::Twist(iDynTree::GeomVector3(0,0,0), iDynTree::GeomVector3(0,0,0)), // Torso twist
 		                                tempVelocity,                                       // Joint velocities
@@ -376,7 +382,7 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                               Grasp an object with two hands                                   //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::grasp_object(const Payload &_payload)
+bool iCubBase::grasp_object()
 {
 	if(this->isGrasping)
 	{
@@ -388,18 +394,22 @@ bool iCubBase::grasp_object(const Payload &_payload)
 	}
 	else
 	{
-		this->isGrasping = true;                                                            // Set grasp constraint
+		std::cout << "I need to fix this.\n";
+		
+		return false;
+		
+/*		this->isGrasping = true;                                                            // Set grasp constraint
 		
 		this->payload = _payload;                                                           // Transfer payload information
 		
 		if(update_state()) return move_object(this->payload.pose(), 5.0);                   // Update pose, grasp constraints, activate control
 		else
 		{
-			std::cout << "[ERROR] [ICUB BASE] grasp_object(): "
-			          << "Something went wrong.\n";
+			std::cout << "[ERROR] [ICUB BASE] grasp_object(): Something went wrong.\n";
 			          
 			return false;
 		}
+*/
 	}
 }
   
@@ -569,6 +579,27 @@ Eigen::Isometry3d iCubBase::hand_pose(const std::string &which)
 	     if(which == "left")  return this->leftPose;
 	else if(which == "right") return this->rightPose;
 	else throw std::invalid_argument("[ERROR] [iCUB BASE] hand_pose(): Expected 'left' or 'right' but the argument was '"+which+"'.");
+}
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                 Set the desired joint position when executing Cartesian control               //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_desired_joint_position(const Eigen::VectorXd &position)
+{
+	if(position.size() != this->numJoints)
+	{
+		std::cerr << "[ERROR] [iCUB BASE] set_desired_joint_position(): "
+		          << "This robot has " << this->numJoints << " joints, but the argument "
+		          << "had " << position.size() << " elements.\n";
+		
+		return false;
+	}
+	else
+	{
+		this->desiredPosition = position;
+		
+		return true;
+	}
 }
 
 /*
