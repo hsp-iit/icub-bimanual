@@ -42,8 +42,8 @@ class iCubBase : public QPSolver,
 		bool move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 		                       const std::vector<double> &times);                           // Move the joints through several positions
 		                       
-		bool set_joint_gains(const double &proportional, const double &derivative);
-		                       
+		bool set_joint_gains(const double &proportional, const double &derivative);         // Set the gains for joint control
+		
 		// Cartesian control functions
 		bool is_grasping() const { return this->isGrasping; }                               // Check if grasp constraint is active
 		
@@ -62,12 +62,14 @@ class iCubBase : public QPSolver,
 		Eigen::Matrix<double,6,1> pose_error(const Eigen::Isometry3d &desired,
 		                                     const Eigen::Isometry3d &actual);
 		                                     
-		Eigen::Isometry3d hand_pose(const std::string &which);
+		Eigen::Isometry3d hand_pose(const std::string &which);                              // Get the pose of a specified hand
 		                                     
-		bool set_cartesian_gains(const double &proportional, const double &derivative);
+		bool set_cartesian_gains(const double &proportional, const double &derivative);     // Set the gains for the controller
+		
+		bool set_desired_joint_position(const Eigen::VectorXd &position);                   // For redundancy resolution                   
 		               
 		// Grasp control functions
-		bool grasp_object(const Payload &_payload);                                         // As it says on the label
+		bool grasp_object();                                         // As it says on the label
 		
 		bool release_object();                                                              // Deactivates grasp constraints
 		
@@ -91,6 +93,8 @@ class iCubBase : public QPSolver,
 		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
 		
 		Eigen::MatrixXd J, M, invM;                                                         // Jacobian, inertia, and inverse of inertia
+		
+		iDynTree::Transform basePose;                                                       // Pose of the base
 		
 		// Joint control
 		double kp = 1.0;                                                                    // Default proportional gain
@@ -118,7 +122,7 @@ class iCubBase : public QPSolver,
 		
 		Eigen::Isometry3d leftPose, rightPose;                                              // Left and right hand pose
 		
-		Eigen::VectorXd desiredConfiguration;
+		Eigen::VectorXd desiredPosition;                                                    // For redundancy resolution
 		
 		// Grasp control
 		bool isGrasping = false;
