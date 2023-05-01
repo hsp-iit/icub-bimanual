@@ -602,6 +602,28 @@ bool iCubBase::set_desired_joint_position(const Eigen::VectorXd &position)
 	}
 }
 
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //               Set the parameters for singularity avoidance (i.e. damped least squares)        //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_singularity_avoidance_params(const double &_maxDamping, const double &_threshold)
+{
+	if(_maxDamping <= 0 or _threshold <= 0)
+	{
+		std::cerr << "[ERROR] [iCUB BASE] set_singularity_avoidance_params(): "
+		          << "Arguments must be positive, but the damping argument was "
+		          << _maxDamping << ", and the threshold argument was " << _threshold << ".\n";
+		
+		return false;
+	}
+	else
+	{
+		this->maxDamping = _maxDamping;
+		this->threshold = _threshold;
+		
+		return true;
+	}
+}
+
 /*
 iCubBase::iCubBase(const std::string              &pathToURDF,
                    const std::vector<std::string> &jointNames,
