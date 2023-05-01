@@ -67,6 +67,10 @@ class iCubBase : public QPSolver,
 		bool set_cartesian_gains(const double &proportional, const double &derivative);     // Set the gains for the controller
 		
 		bool set_desired_joint_position(const Eigen::VectorXd &position);                   // For redundancy resolution                   
+		         
+		bool set_singularity_avoidance_params(const double &_maxDamping,
+		                                      const double &_threshold);
+		         
 		               
 		// Grasp control functions
 		bool grasp_object();                                         // As it says on the label
@@ -106,7 +110,7 @@ class iCubBase : public QPSolver,
 		// Cartesian control
 		double maxDamping = 0.01;                                                           // For singularity avoidance
 		
-		double threshold  = 1e-04;                                                          // For activating singularity avoidance
+		double threshold  = 0.001;                                                          // For activating singularity avoidance
 		
 		Eigen::Matrix<double,6,6> gainTemplate = (Eigen::MatrixXd(6,6) << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		                                                                  0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
