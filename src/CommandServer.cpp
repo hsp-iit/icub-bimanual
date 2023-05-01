@@ -50,14 +50,14 @@ class CommandServer : public CommandInterface
 			std::vector<double> times;                                                  // Time to reach each waypoint
 			Type type;                                                                  // Enumeration; relative or absolute
 			
-			// Find the left hand motion in the list
+			// Find the left-hand motion in the list
 			auto temp = this->leftHandMap->find(actionName);
 			
 			if(temp == this->leftHandMap->end())
 			{
 				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
-				          << "Could not find the action named " << actionName
-				          << " for the left hand.\n";
+				          << "Could not find the action named '" << actionName
+				          << "' for the left hand.\n";
 				
 				return false;
 			}
@@ -68,14 +68,14 @@ class CommandServer : public CommandInterface
 				type          = temp->second.type;
 			}
 			
-			// Find the right hand motion in the list
+			// Find the right-hand motion in the list
 			temp = this->rightHandMap->find(actionName);
 			
 			if(temp == this->rightHandMap->end())
 			{
 				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
-				          << "Could not find the action named " << actionName
-				          << " for the right hand.\n";
+				          << "Could not find the action named '" << actionName
+				          << "' for the right hand.\n";
 				
 				return false;
 			}
@@ -83,24 +83,22 @@ class CommandServer : public CommandInterface
 			
 			if(type == absolute)
 			{
-				std::cout << "NOT YET PROGRAMMED.\n";
-				
-				return false;
+				return this->robot->move_to_poses(leftWaypoints, rightWaypoints, times);
 			}
 			else // type == relative
 			{
 				try
 				{
-					// NOTE: For now assume only 1 waypoint
+					// NOTE: HERE I AM ASSUMING ONLY 1 WAYPOINT, BUT I NEED TO PROGRAM
+					// FOR MULTIPLE, RELATIVE WAYPOINTS
+					// Also, I am only translating otherwise things get weird
 					
-					Eigen::Isometry3d desiredLeft  = this->robot->hand_pose("left")*leftWaypoints[0];   // Transform to base of robot
-					Eigen::Isometry3d desiredRight = this->robot->hand_pose("right")*rightWaypoints[0]; // Transform to base of robot
+					Eigen::Isometry3d desiredLeft  = this->robot->hand_pose("left");
+					desiredLeft.translation() += leftWaypoints[0].translation();
+					                               
 					
-					std::cout << "Here is the desired left hand pose:\n";
-					std::cout << desiredLeft.matrix() << std::endl;
-					
-					std::cout << "Here is the desired right hand pose:\n";
-					std::cout << desiredRight.matrix() << std::endl;
+					Eigen::Isometry3d desiredRight = this->robot->hand_pose("right");
+					desiredRight.translation() += rightWaypoints[0].translation();
 					
 					this->robot->move_to_pose(desiredLeft,desiredRight,times[0]);     // Send the commands onward
 					
@@ -131,8 +129,8 @@ class CommandServer : public CommandInterface
 			if(jointConfig == this->jointActionMap->end())
 			{
 				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_to_named_configuration(): "
-				          << "Could not find a joint configuration named "
-				          << actionName << " in the list.\n";
+				          << "Could not find a joint configuration named '"
+				          << actionName << "' in the list.\n";
 				
 				return false;
 			}
@@ -203,8 +201,9 @@ class CommandServer : public CommandInterface
 
 		bool release_object() const { return this->robot->release_object(); }
 
-		//void stop() { this->robot.halt(); }
-
+		void stop() { this->robot->halt(); }
+		
+		void shut_down() { this->serverActive = false; }
 
 		// Move a grasped object to a pose
 		bool move_object_to_pose(const std::vector<double>& pose, const double time)
@@ -234,8 +233,12 @@ class CommandServer : public CommandInterface
 				return false;
 			}
 		}	
+		
+		///////////////////// Not defined in CommandInterface.h ///////////////////////////
+		bool is_active() const { return this->serverActive; }
 	    
 	private:
+		bool serverActive = true;
 		
 		PositionControl *robot;                                                             // Pointer to robot object
 		
@@ -301,13 +304,13 @@ int main(int argc, char* argv[])
 		
 		// Load the left hand actions from the config file
 		
-		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("names").asList();
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("names").asList(); // Find all the listed names
 		
-		std::vector<std::string> nameList = string_from_bottle(bottle);
+		std::vector<std::string> nameList = string_from_bottle(bottle);                     // Convert to vector of strings
 		
-		std::map<std::string, CartesianMotion> leftHandMap;
+		std::map<std::string, CartesianMotion> leftHandMap;                                 // Create the map so we can search it later
 		
-		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("left").asList();
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("left").asList(); // Get all the actions listed for the left hand
 		
 		if(bottle == nullptr)
 		{
@@ -316,7 +319,7 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;
+		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;          // Try and put the named actions together in the map
 		
 		// Load the right hand actions from the config file
 		std::map<std::string, CartesianMotion> rightHandMap;
@@ -342,8 +345,24 @@ int main(int argc, char* argv[])
 		
 		// Set the joint gains
 		kp = parameter.findGroup("JOINT_GAINS").find("proportional").asFloat64();
-		kd = parameter.findGroup("JOINT_GAINS").find("derivative").asFloat64();	
+		kd = parameter.findGroup("JOINT_GAINS").find("derivative").asFloat64();
 		if(not robot.set_joint_gains(kp,kd)) return 1;
+		
+		// Set the singularity avoidance parameters
+		double maxDamping = parameter.findGroup("SINGULARITY_AVOIDANCE").find("maxDamping").asFloat64();
+		double threshold  = parameter.findGroup("SINGULARITY_AVOIDANCE").find("threshold").asFloat64();
+		if(not robot.set_singularity_avoidance_params(maxDamping,threshold)) return 1;
+		
+		// Set the desired position for the joints when running in Cartesian mode
+		bottle->clear(); bottle = parameter.find("desired_position").asList();
+		if(bottle == nullptr)
+		{
+			std::cerr << "[ERROR] [iCUB COMMAND SERVER] "
+			          << "Couldn't find 'desired_position' listed in the config file.\n";
+			return 1;
+		}
+		robot.set_desired_joint_position(vector_from_bottle(bottle));
+		
 		
 		// Establish communication over YARP
 		yarp::os::Network yarp;
@@ -357,7 +376,7 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		while(true)
+		while(commandServer.is_active())
 		{
 			std::cout << "\nWorker bees can leave.\n";
 			yarp::os::Time::delay(5);
@@ -366,6 +385,8 @@ int main(int argc, char* argv[])
 			std::cout << "The Queen is their slave.\n";
 			yarp::os::Time::delay(20);
 		}
+		
+		std::cout << "[INFO] [iCUB COMMAND SERVER] Shutting down. Arrivederci.\n";
 		
 		port.close();
 		
