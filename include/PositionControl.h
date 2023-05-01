@@ -38,6 +38,22 @@ class PositionControl : public iCubBase
 					   213.30*(M_PI/180);
 					   
 			this->b.tail(5) = this->b.head(5);
+		
+			// Bsmall = [ -I ]
+			//          [  I ]
+			//          [  A ]
+			this->Bsmall.resize(10+2*this->numJoints,this->numJoints);
+			this->Bsmall.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+			this->Bsmall.block(  this->numJoints, 0, this->numJoints, this->numJoints).setIdentity();
+			this->Bsmall.block(2*this->numJoints, 0,              10, this->numJoints) = this->A;
+			
+			// B = [ 0 -I ]
+			//     [ 0  I ]
+			//     [ 0  A ]
+			this->B.resize(10+2*this->numJoints,12+this->numJoints);
+			this->B.block( 0,  0, 10+2*this->numJoints,              12).setZero();
+			this->B.block( 0, 12, 10+2*this->numJoints, this->numJoints) = this->Bsmall;
+					
 	        }
 
 		//////////////////////// Inherited from iCubBase class ////////////////////////////
@@ -63,6 +79,8 @@ class PositionControl : public iCubBase
 		//////////////////////// Methods & members specific to iCub2 //////////////////////
 		Eigen::MatrixXd A;                                                                  // Constraint matrix for the iCub2
 		Eigen::Matrix<double,10,1> b;                                                       // Constraint vector for the iCub2
+		Eigen::MatrixXd B;
+		Eigen::MatrixXd Bsmall;
 		
 		Eigen::VectorXd icub2_cartesian_control(const Eigen::Matrix<double,12,1> &dx,
 		                                        const Eigen::VectorXd &redundantTask,
