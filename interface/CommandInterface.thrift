@@ -31,4 +31,6 @@ service CommandInterface
 	bool release_object();                                                                      # As it says on the label
 	
 	void stop();                                                                                # Stop the robot moving immediately
+
+	void shut_down();                                                                           # Shut down the command server
 }
