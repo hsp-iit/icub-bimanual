@@ -75,14 +75,11 @@ void PositionControl::run()
 				
 				// Now formulate constraints B*dq > z
 				
-				// B = [ -I ]
-				//     [  I ]
-				//     [  A ]
-				Eigen::MatrixXd B(2*this->numJoints + 10, this->numJoints);
-				B.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-				B.block(  this->numJoints, 0, this->numJoints, this->numJoints) =  Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-				B.block(2*this->numJoints, 0,              10, this->numJoints) =  this->A; // Shoulder constraints
-				
+				// Bsmall = [ -I ]
+				//          [  I ]
+				//          [  A ]
+				// NOTE: This is already set in the constructor
+
 				// z = [   -dq_max  ]
 				//     [    dq_min  ]
 				//     [ -(A*q + b) ]
@@ -94,7 +91,7 @@ void PositionControl::run()
 				try // to solve the QP problem
 				{
 					dq = QPSolver::solve(Eigen::MatrixXd::Identity(this->numJoints,this->numJoints),
-					                     -(desiredPosition - this->qRef), B, z, startPoint);
+					                     -(desiredPosition - this->qRef), this->Bsmall, z, startPoint);
 				}
 				catch(const std::exception &exception)
 				{
@@ -116,9 +113,9 @@ void PositionControl::run()
 		}
 		else // this->controlSpace == Cartesian
 		{
-			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);              // Get the required Cartesian motion
+			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);               // Get the required Cartesian motion
 			
-			Eigen::VectorXd redundantTask = 0.1*(this->desiredPosition - this->q); // q OR qRef ???
+			Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->q);     // q OR qRef ???
 			
 			// Get the instantaneous limits on the joint motion
 			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
@@ -133,36 +130,14 @@ void PositionControl::run()
 				// for the iCub2's shoulder constraints ಠ_ಠ
 				// I put it in a separate function because it's long and ugly
 				
-				dx.setZero(); dx(2) = 0.001, dx(8) = 0.001;
+				//dx.setZero(); // DELETE THIS LATER dx(2) = 0.001, dx(8) = 0.001;
 				
 				dq = icub2_cartesian_control(dx, redundantTask, lowerBound, upperBound);
-				
-				std::cout << dq << std::endl;
 				
 			}
 			else // this->_robotModel = "ergoCub"
 			{
-				Eigen::VectorXd startPoint;                                         // Required by the QP solver
-			
-				if(QPSolver::last_solution_exists())
-				{
-					try // to get the previous solution
-					{
-						startPoint = QPSolver::last_solution().tail(this->numJoints); // Remove any Lagrange multipliers that may exist
-						
-						for(int i = 0; i < this->numJoints; i++)
-						{
-							     if(startPoint(i) < lowerBound(i)) startPoint(i) = lowerBound(i) + 0.001;
-							else if(startPoint(i) > upperBound(i)) startPoint(i) = upperBound(i) - 0.001;
-						}
-					}
-					catch(const std::exception &exception)
-					{
-						std::cout << exception.what() << std::endl;         // Print out the problem
-						startPoint = 0.5*(lowerBound + upperBound);         // Start in the middle for good measure
-					}	
-				}
-				else  startPoint = 0.5*(lowerBound + upperBound);                   // Start half way
+				Eigen::VectorXd startPoint = 0.5*(lowerBound + upperBound);
 				
 				double mu = sqrt((this->J*this->J.transpose()).determinant());      // Proximity to singularity				
 				
@@ -322,36 +297,44 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 	double mu = sqrt((this->J*this->J.transpose()).determinant());                              // Proximity to a singularity
 	
 	if(mu > this->threshold)                                                                    // i.e. not singular
-	{
+	{	
 		Eigen::VectorXd startPoint(12+this->numJoints);                                     // +12 for Lagrange multiplier
-		
+	
 		if(QPSolver::last_solution_exists())
 		{
-			Eigen::VectorXd temp = QPSolver::last_solution();
-			
-			if(temp.size() == 12+this->numJoints)
+			try
 			{
-				startPoint = temp;                            	                    // It has Lagrange multipliers already
+				Eigen::VectorXd lastSolution = QPSolver::last_solution();
+				
+				if(lastSolution.size() == (12+this->numJoints))
+				{
+					startPoint = lastSolution;
+				}
+				else
+				{
+					startPoint.head(12) = lagrange_multipliers(dx,redundantTask);
+					startPoint.tail(this->numJoints) = lastSolution;
+				}
+				
+				for(int i = 0; i < this->numJoints; i++)
+				{
+					     if(startPoint(12+i) < lowerBound(i)) startPoint(12+i) = lowerBound(i) + 0.01;
+					else if(startPoint(12+i) > upperBound(i)) startPoint(12+i) = upperBound(i) - 0.01;
+				}
 			}
-			else                                                                        // No Lagrange multipliers, so we need to compute them
+			catch(const std::exception &exception)
 			{
-				startPoint.head(12) = lagrange_multipliers(dx,redundantTask);       // Initial guess for Lagrange multipliers
-				startPoint.tail(this->numJoints) = temp;                            // Just the joint positions
+				std::cout << exception.what() << std::endl;
+				startPoint.head(12) = lagrange_multipliers(dx,redundantTask);
+				startPoint.tail(this->numJoints) = 0.5*(lowerBound + upperBound);
 			}
 		}
 		else
 		{
-			startPoint.head(12) = lagrange_multipliers(dx,redundantTask);               // Initial guess for Lagrange multipliers
-		 	startPoint.tail(this->numJoints) = 0.5*(lowerBound + upperBound);           // Half way
+			startPoint.head(12) = lagrange_multipliers(dx,redundantTask);
+			startPoint.tail(this->numJoints) = 0.5*(lowerBound + upperBound);
 		}
-		
-		// Make sure the start point is within the bounds or the QP solver will fail.
-		for(int i = 0; i < this->numJoints; i++)
-		{
-			     if(startPoint(12+i) < lowerBound(i)) startPoint(12+i) = lowerBound(i) + 0.001;
-			else if(startPoint(12+i) > upperBound(i)) startPoint(12+i) = upperBound(i) - 0.001;
-		}
-		
+
 		// H = [ 0  J ]
 		//     [ J' M ]
 		Eigen::MatrixXd H(12+this->numJoints, 12+this->numJoints);
@@ -371,15 +354,11 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		// B = [ 0 -I ]
 		//     [ 0  I ]
 		//     [ 0  A ]
-		Eigen::MatrixXd B(2*this->numJoints+10,12+this->numJoints);                         // 2*n for joint limits, 10 for shoulder limits
-		B.block(                0, 0,10+2*this->numJoints,             12) = Eigen::MatrixXd::Zero(10+2*this->numJoints,12);
-		B.block(                0,12,     this->numJoints,this->numJoints) =-Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-		B.block(  this->numJoints,12,     this->numJoints,this->numJoints) = Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-		B.block(2*this->numJoints,12,                  10,this->numJoints) = this->A;
+		// NOTE: This is already set in the constructor!
 		
 		try // to solve the QP problem
 		{
-			return (QPSolver::solve(H,f,B,z,startPoint)).tail(this->numJoints);         // We don't need the Lagrange multipliers
+			return (QPSolver::solve(H,f,this->B,z,startPoint)).tail(this->numJoints);         // We don't need the Lagrange multipliers
 		}
 		catch(const std::exception &exception)
 		{
@@ -390,41 +369,49 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 	}
 	else // solve the damped least squares method
 	{
-		Eigen::VectorXd startPoint(this->numJoints);                                        // Required by the QP solver
+
+		double damping = (1 - mu/this->threshold)*this->maxDamping;
+		
+		std::cout << "[WARNING] [POSITION CONTROL] Robot configuration is singular! "
+		          << "Manipulability is " << mu << " and the threshold is set at "
+		          << this->threshold << ".\n";
+		
+		Eigen::VectorXd startPoint(this->numJoints);
 		
 		if(QPSolver::last_solution_exists())
 		{
-			try // To get the solution
+			try
 			{
 				startPoint = QPSolver::last_solution().tail(this->numJoints);       // Remove any Lagrange multipliers that may exist
+			
+				for(int i = 0; i < this->numJoints; i++)
+				{
+					     if(startPoint(i) < lowerBound(i)) startPoint(i) = lowerBound(i) + 0.01;
+					else if(startPoint(i) > upperBound(i)) startPoint(i) = upperBound(i) - 0.01;
+				}
 			}
 			catch(const std::exception &exception)
 			{
 				std::cout << exception.what() << std::endl;
-				
 				startPoint = 0.5*(lowerBound + upperBound);
 			}
 		}
-		else	startPoint = 0.5*(lowerBound + upperBound);
+		else startPoint = 0.5*(lowerBound + upperBound);
 		
-		double damping = (1 - mu/this->threshold)*this->maxDamping;
 		
 		Eigen::MatrixXd H = this->J.transpose()*this->J;
 		for(int i = 0; i < this->numJoints; i++) H(i,i) += damping*damping;                 // The same as (J'*J + damping^2*I)
 		
 		Eigen::VectorXd f = -this->J.transpose()*f;
 		
-		// B = [ -I ]
-		//     [  I ]
-		//     [  A ]
-		Eigen::MatrixXd B(2*this->numJoints + 10,this->numJoints);
-		B.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-		B.block(  this->numJoints, 0, this->numJoints, this->numJoints).setIdentity();
-		B.block(2*this->numJoints, 0,              10, this->numJoints) = this->A;
+		// Bsmall = [ -I ]
+		//          [  I ]
+		//          [  A ]
+		// NOTE: This is already set in the constructor!
 		
 		try // to solve the QP problem
 		{
-			return QPSolver::solve(H,f,B,z,startPoint);
+			return QPSolver::solve(H,f,this->Bsmall,z,startPoint);
 		}
 		catch(const std::exception &exception)
 		{
