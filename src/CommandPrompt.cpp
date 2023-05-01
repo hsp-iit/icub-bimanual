@@ -75,7 +75,8 @@ int main(int argc, char* argv[])
 		if(command == "close")
 		{
 			output.addString("Arrivederci");
-			active = false;
+			client.shut_down();                                                         // Shut down the server
+			active = false;                                                             // Exit and shut down this
 		}
 		else if(command == "stop")
 		{
