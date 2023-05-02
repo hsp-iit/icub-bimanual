@@ -257,8 +257,8 @@ int main(int argc, char* argv[])
 	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
 	if(argc != 4)
 	{
-		std::cerr << errorMessage << "Port name and path to URDF are required. "
-		          << "Usage: ./icub2_grasp_demo /portPrefix /path/to/model.urdf /path/to/config.ini\n";
+		std::cerr << errorMessage << "Port name, path to URDF, and path to config file are required. "
+		          << "Usage: ./command_server /portPrefix /path/to/model.urdf /path/to/config.ini\n";
 		
 		return 1;                                                                           // Close with error
 	}
@@ -277,8 +277,10 @@ int main(int argc, char* argv[])
 		
 	try // to start up the robot
 	{
+		std::string robotModel = parameter.find("model_name").asString();                   // Get the name
+		
 		// Get the joint list from the config file
-		yarp::os::Bottle* bottle; bottle = parameter.find("joint_names").asList();
+		yarp::os::Bottle *bottle; bottle = parameter.find("joint_names").asList();
 		
 		if(bottle == nullptr)
 		{
@@ -335,8 +337,7 @@ int main(int argc, char* argv[])
 		
 		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;
 		
-		////////////////////// NEED TO LOAD NAME AS AN ARGUMENT /////////////////////////////
-		PositionControl robot(pathToURDF, jointNames, portList, "iCub2");                   // Start up the robot
+		PositionControl robot(pathToURDF, jointNames, portList, robotModel);                // Start up the robot
 		
 		// Set the Cartesian gains
 		double kp = parameter.findGroup("CARTESIAN_GAINS").find("proportional").asFloat64();
