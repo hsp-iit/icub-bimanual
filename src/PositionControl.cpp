@@ -104,7 +104,7 @@ void PositionControl::run()
 				// SO MUCH EASIER ಥ‿ಥ
 				for(int i = 0; i < this->numJoints; i++)
 				{
-					dq(i) = desiredPosition(i) - this->q(i);                    // Difference between current position and desired position
+					dq(i) = desiredPosition(i) - this->qRef(i);                  // Difference between current reference point and desired
 					
 					     if(dq(i) <= lowerBound(i)) dq(i) = lowerBound(i) + 0.001; // Just above the lower bound
 					else if(dq(i) >= upperBound(i)) dq(i) = upperBound(i) - 0.001; // Just below the upper bound
@@ -115,7 +115,7 @@ void PositionControl::run()
 		{
 			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);               // Get the required Cartesian motion
 			
-			Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->q);     // q OR qRef ???
+			Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->qRef);     // q OR qRef ???
 			
 			// Get the instantaneous limits on the joint motion
 			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
@@ -130,14 +130,33 @@ void PositionControl::run()
 				// for the iCub2's shoulder constraints ಠ_ಠ
 				// I put it in a separate function because it's long and ugly
 				
-				//dx.setZero(); // DELETE THIS LATER dx(2) = 0.001, dx(8) = 0.001;
-				
 				dq = icub2_cartesian_control(dx, redundantTask, lowerBound, upperBound);
 				
 			}
 			else // this->_robotModel = "ergoCub"
 			{
-				Eigen::VectorXd startPoint = 0.5*(lowerBound + upperBound);
+				Eigen::VectorXd startPoint(this->numJoints);                        // Required by the QP solver
+				
+				if(QPSolver::last_solution_exists())
+				{
+					try
+					{
+						startPoint = QPSolver::last_solution().tail(this->numJoints); // Remove any Lagrange multipliers
+						
+						for(int i = 0; i < this->numJoints; i++)
+						{
+							     if(startPoint(i) <= lowerBound(i)) startPoint(i) = lowerBound(i) + 0.01;
+							else if(startPoint(i) >= upperBound(i)) startPoint(i) = upperBound(i) - 0.01;
+						}
+					}
+					catch(const std::exception &exception)
+					{
+						std::cout << exception.what() << std::endl;
+						
+						startPoint = 0.5*(lowerBound + upperBound);
+					}
+				}
+				else startPoint = 0.5*(lowerBound + upperBound);
 				
 				double mu = sqrt((this->J*this->J.transpose()).determinant());      // Proximity to singularity				
 				
@@ -155,7 +174,14 @@ void PositionControl::run()
 				}                             
 				else // Solve Damped Least Squares (DLS)
 				{
-					double damping = (1-mu/this->threshold)*this->maxDamping;
+					std::cout << "[WARNING] [POSITION CONTROL] Robot is (near) singular! "
+					          << "Manipulability " << mu << ". Try changing the joint configuration.\n";
+					          
+					// This doesn't seem to be working well:
+					/*
+					double damping = (1-pow(mu/this->threshold,2))*this->maxDamping;
+					
+					std::cout << "Damping: " << damping << std::endl;
 					
 					// v = [  0 ]
 					//     [ dx ]
@@ -165,7 +191,7 @@ void PositionControl::run()
 					
 					// P = [ damping*I ]
 					//     [     J     ]
-					Eigen::MatrixXd P(this->numJoints+12,this->numJoints);
+					Eigen::MatrixXd P(12+this->numJoints,this->numJoints);
 					P.block(              0, 0, this->numJoints, this->numJoints) = damping*Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
 					P.block(this->numJoints, 0,              12, this->numJoints) = this->J;
 					
@@ -178,6 +204,7 @@ void PositionControl::run()
 					{
 						std::cout << exception.what() << std::endl;
 					}
+					*/
 				}	
 			}
 		}
