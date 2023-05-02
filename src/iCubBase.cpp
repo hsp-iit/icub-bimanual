@@ -49,7 +49,7 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 		{
 			throw std::runtime_error(message + "Hand transforms for iCub3 have not been programmed yet!");
 		}
-		else if(this->_robotModel == "ergocub")
+		else if(this->_robotModel == "ergoCub")
 		{
 			temp.addAdditionalFrameToLink("l_hand_palm", "left",
 			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
@@ -63,7 +63,7 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 		}
 		else
 		{	
-			message += "Expected 'iCub2', 'iCub3' or 'ergoCub' for the robot _robotModel, "
+			message += "Expected 'iCub2', 'iCub3' or 'ergoCub' for the robot model argument, "
 			                "but your input was '" + robotModel + "'.";
 			                            
 			throw std::invalid_argument(message);
