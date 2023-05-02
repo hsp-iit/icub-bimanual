@@ -1,11 +1,17 @@
 #!/bin/bash
 
-# Options
-CONFIG="~/workspace/icub-bimanual/config/icub2.ini"                                                             
-PORT="/icubSim"                                                                          # Port name
 SESSION="bimanual"                                                                       # So we can reference $SESSION later
-URDF="~/workspace/robotology-superbuild/src/icub-models/iCub/robots/iCubGazeboV2_7/model.urdf"
-WORLD="~/workspace/icub-bimanual/gazebo/worlds/icub2_grasp_demo.sdf"                     # Location of the Gazebo world
+
+# Options
+CONFIG="~/workspace/icub-bimanual/config/ergocub.ini"
+PORT="/ergocubSim"
+URDF="~/workspace/robotology-superbuild/src/ergocub-software/urdf/ergoCub/robots/ergoCubGazeboV1/model.urdf"
+WORLD="~/workspace/icub-bimanual/gazebo/worlds/ergocub_grasp_demo.sdf"
+
+#CONFIG="~/workspace/icub-bimanual/config/icub2.ini"                                                             
+#PORT="/icubSim"                                                                          # Port name
+#URDF="~/workspace/robotology-superbuild/src/icub-models/iCub/robots/iCubGazeboV2_7/model.urdf"
+#WORLD="~/workspace/icub-bimanual/gazebo/worlds/icub2_grasp_demo.sdf"                     # Location of the Gazebo world
 
 if pgrep -x gzserver >/dev/null
 	then
