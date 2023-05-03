@@ -63,6 +63,8 @@ class iCubBase : public QPSolver,
 		                                     const Eigen::Isometry3d &actual);
 		                                     
 		Eigen::Isometry3d hand_pose(const std::string &which);                              // Get the pose of a specified hand
+		                        
+		Eigen::Isometry3d object_pose() const { return this->payload.pose();}         
 		                                     
 		bool set_cartesian_gains(const double &proportional, const double &derivative);     // Set the gains for the controller
 		
