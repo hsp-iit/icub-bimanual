@@ -207,7 +207,28 @@ void PositionControl::run()
 					*/
 				}
 				
-				
+				if(this->isGrasping)
+				{
+					// Resolve the QP problem subject to grasp constraints
+					
+					try
+					{
+						Eigen::MatrixXd Jc = this->C*this->J;
+						
+						// Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
+						dq = QPSolver::least_squares(dq,
+						                             this->M,
+						                             Eigen::VectorXd::Zero(6),
+						                             Jc,
+						                             lowerBound,
+						                             upperBound,
+						                             dq);
+					}
+					catch(const std::exception &exception)
+					{
+						std::cout << exception.what() << std::endl;
+					}
+				}
 			}
 		}
 	
