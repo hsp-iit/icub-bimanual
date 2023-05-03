@@ -13,7 +13,7 @@
 
 std::string errorMessage = "[ERROR] [COMMAND PROMPT] ";
 
-std::map<std::string,bool> commandList;                                                             // 0 = Joint command, 1 = Cartesian command
+std::map<std::string,int> commandList;                                                             // 0 = Joint command, 1 = Cartesian command
 
 int main(int argc, char* argv[])
 {
@@ -36,6 +36,11 @@ int main(int argc, char* argv[])
 	bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("names").asList();
 	names = string_from_bottle(bottle);
 	for(int i = 0; i < names.size(); i++) commandList.emplace(names[i],1);
+	
+	// Load the list of grasp actions
+	bottle->clear(); bottle = parameter.findGroup("GRASP_ACTIONS").find("names").asList();
+	names = string_from_bottle(bottle);
+	for(int i = 0; i < names.size(); i++) commandList.emplace(names[i],2);
 	
 	yarp::os::Network yarp; 
 	
@@ -84,6 +89,16 @@ int main(int argc, char* argv[])
 			
 			client.stop();
 		}
+		else if(command == "grasp")
+		{
+			output.addString("Mio");
+			client.grasp();
+		}
+		else if(command == "release")
+		{
+			output.addString("Capito");
+			client.release_object();
+		}
 		else
 		{
 			auto blah = commandList.find(command);
@@ -102,6 +117,11 @@ int main(int argc, char* argv[])
 				else if(blah->second == 1)                                          // It's a Cartesian command
 				{
 					if(client.perform_cartesian_action(command)) output.addString("Capito");
+					else output.addString("Problema");
+				}
+				else if(blah->second == 2)
+				{
+					if(client.perform_grasp_action(command)) output.addString("Capito");
 					else output.addString("Problema");
 				}
 				else output.addString("Problema");

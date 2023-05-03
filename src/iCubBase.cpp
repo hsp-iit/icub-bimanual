@@ -393,23 +393,22 @@ bool iCubBase::grasp_object()
 		return false;
 	}
 	else
-	{
-		std::cout << "I need to fix this.\n";
+	{		
+		this->isGrasping = true;                                                            // Set grasp constraint
 		
-		return false;
+		double distance = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
 		
-/*		this->isGrasping = true;                                                            // Set grasp constraint
+		Eigen::Isometry3d localPose(Eigen::Translation3d(0,-distance/2,0));                 // Negative y-axis of left hand, half the distance between hands
 		
-		this->payload = _payload;                                                           // Transfer payload information
+		this->payload = Payload(localPose);                                                 // Set the payload
 		
-		if(update_state()) return move_object(this->payload.pose(), 5.0);                   // Update pose, grasp constraints, activate control
+		if(update_state()) return move_object(this->payload.pose(), 1.0);                   // Update pose, grasp constraints, activate control
 		else
 		{
 			std::cout << "[ERROR] [ICUB BASE] grasp_object(): Something went wrong.\n";
 			          
 			return false;
 		}
-*/
 	}
 }
   

@@ -29,14 +29,16 @@ class CommandServer : public CommandInterface
 		             leftHandMap(_leftHandMap),
 		             rightHandMap(_rightHandMap) {}        
 		
+		std::string errorMessage = "[ERROR] [iCUB COMMAND SERVER] ";
+		std::string graspMessage = "I'm currently holding something! You need to call 'release_object()'.\n";
+		
+		
 		////////// NOTE: These are directly copied from CommandInterface.h //////////
 
 		// Activate the grasp constraints
 		bool grasp()
 		{
-			std::cout << "Not yet programmed!\n";
-			
-			return false;
+			return this->robot->grasp_object();
 		}
 
 		// Query if the robot is finished moving
@@ -45,6 +47,13 @@ class CommandServer : public CommandInterface
 		// Move the hands by prescribed action
 		bool perform_cartesian_action(const std::string& actionName)
 		{
+			if(this->robot->is_grasping())
+			{
+				std::cout << errorMessage << "perform_cartesian_action(): " << graspMessage;
+				
+				return false;
+			}
+			
 			// Variables used in this scope
 			std::vector<Eigen::Isometry3d> leftWaypoints, rightWaypoints;               // Cartesian waypoints for the hands
 			std::vector<double> times;                                                  // Time to reach each waypoint
@@ -55,7 +64,7 @@ class CommandServer : public CommandInterface
 			
 			if(temp == this->leftHandMap->end())
 			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
+				std::cerr << errorMessage << " move_hands_by_action(): "
 				          << "Could not find the action named '" << actionName
 				          << "' for the left hand.\n";
 				
@@ -73,7 +82,7 @@ class CommandServer : public CommandInterface
 			
 			if(temp == this->rightHandMap->end())
 			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_by_action(): "
+				std::cerr << errorMessage << " move_hands_by_action(): "
 				          << "Could not find the action named '" << actionName
 				          << "' for the right hand.\n";
 				
@@ -116,19 +125,34 @@ class CommandServer : public CommandInterface
 		// Move a grasped object by a prescribed action
 		bool perform_grasp_action(const std::string& actionName)
 		{
-			std::cout << "NOT YET PROGRAMMED\n";
+			if(not this->robot->is_grasping())
+			{
+				std::cerr << errorMessage << " perform_grasp_action(): "
+				          << "Not currently holding anything!\n";
+				
+				return false;
+			}
 			
-			return false;
+			temp = graspActionMap.
+			
+			std::cout << "perform_grasp_action() not yet complete.\n";
+			return true;
 		}
 
 		// Move the configuration of the joints by a prescribed action
 		bool perform_joint_space_action(const std::string& actionName)
 		{
+			if(this->robot->is_grasping()) 
+			{
+				std::cerr << errorMessage << " perform_joint_space_action(): " << graspMessage;
+				return false;
+			}
+			
 			auto jointConfig = this->jointActionMap->find(actionName);
 			
 			if(jointConfig == this->jointActionMap->end())
 			{
-				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_to_named_configuration(): "
+				std::cerr << errorMessage << " move_to_named_configuration(): "
 				          << "Could not find a joint configuration named '"
 				          << actionName << "' in the list.\n";
 				
@@ -147,7 +171,12 @@ class CommandServer : public CommandInterface
 		                        const yarp::sig::Matrix& rightPose,
 		                        const double time)
 		{
-			if(leftPose.rows() != 4 or leftPose.cols() != 4)
+			if(this->robot->is_grasping())
+			{
+				std::cerr << errorMessage << "move_hands_to_pose(): " << graspMessage;
+				return false;
+			}
+			else if(leftPose.rows() != 4 or leftPose.cols() != 4)
 			{
 				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_to_pose(): "
 				          << "Expected a 4x4 matrix for the left hand pose, but "
@@ -155,8 +184,7 @@ class CommandServer : public CommandInterface
 				
 				return false;
 			}
-			
-			if(rightPose.rows() != 4 or rightPose.cols() != 4)
+			else if(rightPose.rows() != 4 or rightPose.cols() != 4)
 			{
 				std::cerr << "[ERROR] [iCUB COMMAND SERVER] move_hands_to_pose(): "
 				          << "Expected a 4x4 matrix for the right hand pose, but "
@@ -189,50 +217,41 @@ class CommandServer : public CommandInterface
 		// Move the joints
 		bool move_joints_to_position(const std::vector<double>& position, const double time)
 		{
-			return this->robot->move_to_position(Eigen::VectorXd::Map(&position[0], position.size()), time);
+			if(this->robot->is_grasping())
+			{
+				std::cout << errorMessage << "move_joints_to_position(): " << graspMessage;
+				return false;
+			}
+			else	return this->robot->move_to_position(Eigen::VectorXd::Map(&position[0], position.size()), time);
 		}
 
 		bool move_object_to_pose(const yarp::sig::Matrix& pose, const double time)
 		{
-			std::cout << "NOT YET PROGRAMMED.\n";
-			
-			return false;
-		}
-
-		bool release_object() const { return this->robot->release_object(); }
-
-		void stop() { this->robot->halt(); }
-		
-		void shut_down() { this->serverActive = false; }
-
-		// Move a grasped object to a pose
-		bool move_object_to_pose(const std::vector<double>& pose, const double time)
-		{
-			if(pose.size() == 6)
+			if(not this->robot->is_grasping())
 			{
-				Eigen::Isometry3d desiredPose;
-				
-				try
-				{
-					desiredPose = transform_from_vector(pose);
-					
-					return this->robot->move_object(desiredPose,time);
-				}
-				catch(const std::exception &exception)
-				{
-					std::cout << exception.what() << std::endl;                 // Print out the problem
-					
-					return false;
-				}
+				std::cerr << errorMessage << "move_object_to_pose(): Not currently holding anything!\n";
+				return false;
 			}
-			else
+			else if(pose.rows() != 4 or pose.cols() != 4)
 			{
-				std::cerr << "[ERROR] [iCUB CONTROL SERVER] move_object_to_pose(): "
-				          << "Expected 6 elements for the argument, but it had " << pose.size() << ".\n";
+				std::cerr << errorMessage << " move_object_to_pose(): "
+				          << "Expected a 4x4 matrix for the pose argument, but it was "
+				          << pose.rows() << "x" << pose.cols() << ".\n";
 				
 				return false;
 			}
-		}	
+			else
+			{
+				std::cout << "move_object_to_pose(): Not yet complete.\n";
+				return true;
+			}
+		}
+
+		bool release_object() { return this->robot->release_object(); }
+
+		void stop() { this->robot->halt(); }
+		
+		void shut_down() { this->serverActive = false; }	
 		
 		///////////////////// Not defined in CommandInterface.h ///////////////////////////
 		bool is_active() const { return this->serverActive; }
@@ -244,7 +263,7 @@ class CommandServer : public CommandInterface
 		
 		std::map<std::string, JointTrajectory> *jointActionMap;                             // Map of prescribed joint configurations
 
-		std::map<std::string, CartesianMotion> *leftHandMap, *rightHandMap;
+		std::map<std::string, CartesianMotion> *leftHandMap, *rightHandMap, graspActionMap;
 };                                                                                                  // Semicolon needed after class declaration
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -336,6 +355,30 @@ int main(int argc, char* argv[])
 		}
 		
 		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;
+		
+		// Load the grasp actions from the config file
+		std::map<std::string, CartesianMotion> graspActionMap;
+		bottle->clear(); bottle = parameter.findGroup("GRASP_ACTIONS").find("names").asList();
+		nameList = string_from_bottle(bottle);
+		
+		bottle->clear(); bottle = &parameter.findGroup("GRASP_ACTIONS");
+		
+		std::cout << "Fine" << std::endl;
+		
+		if(bottle == nullptr)
+		{
+			std::cerr << errorMessage << "Could not find the the group called GRASP_ACTIONS "
+			                          << " in " << pathToConfig << ".\n";
+			
+			return 1;
+		}
+		
+		std::cout << "Still fine" << std::endl;
+		
+		if(not load_cartesian_trajectories(bottle,nameList,graspActionMap)) return 1;
+	
+	
+	
 		
 		PositionControl robot(pathToURDF, jointNames, portList, robotModel);                // Start up the robot
 		

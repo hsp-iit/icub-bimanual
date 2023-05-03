@@ -83,6 +83,7 @@ void PositionControl::run()
 				// z = [   -dq_max  ]
 				//     [    dq_min  ]
 				//     [ -(A*q + b) ]
+				
 				Eigen::VectorXd z(2*this->numJoints + 10);
 				z.block(              0, 0, this->numJoints, 1) = -upperBound;      // Upper limits on the joint motion
 				z.block(this->numJoints, 0, this->numJoints, 1) =  lowerBound;      // Lower limits on the joint motion
@@ -131,7 +132,6 @@ void PositionControl::run()
 				// I put it in a separate function because it's long and ugly
 				
 				dq = icub2_cartesian_control(dx, redundantTask, lowerBound, upperBound);
-				
 			}
 			else // this->_robotModel = "ergoCub"
 			{
@@ -205,7 +205,9 @@ void PositionControl::run()
 						std::cout << exception.what() << std::endl;
 					}
 					*/
-				}	
+				}
+				
+				
 			}
 		}
 	

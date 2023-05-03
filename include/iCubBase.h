@@ -73,7 +73,7 @@ class iCubBase : public QPSolver,
 		         
 		               
 		// Grasp control functions
-		bool grasp_object();                                         // As it says on the label
+		bool grasp_object();                                                                // As it says on the label
 		
 		bool release_object();                                                              // Deactivates grasp constraints
 		
