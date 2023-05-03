@@ -22,12 +22,14 @@ class CommandServer : public CommandInterface
 		CommandServer(PositionControl *_robot,
 		              std::map<std::string,JointTrajectory> *_jointActionMap,
 		              std::map<std::string,CartesianMotion> *_leftHandMap,
-		              std::map<std::string,CartesianMotion> *_rightHandMap)
+		              std::map<std::string,CartesianMotion> *_rightHandMap,
+		              std::map<std::string,CartesianMotion> *_graspActionMap)
 		             :
 		             robot(_robot),
 		             jointActionMap(_jointActionMap),
 		             leftHandMap(_leftHandMap),
-		             rightHandMap(_rightHandMap) {}        
+		             rightHandMap(_rightHandMap),
+		             graspActionMap(_graspActionMap) {}        
 		
 		std::string errorMessage = "[ERROR] [iCUB COMMAND SERVER] ";
 		std::string graspMessage = "I'm currently holding something! You need to call 'release_object()'.\n";
@@ -96,47 +98,70 @@ class CommandServer : public CommandInterface
 			}
 			else // type == relative
 			{
-				try
-				{
-					// NOTE: HERE I AM ASSUMING ONLY 1 WAYPOINT, BUT I NEED TO PROGRAM
-					// FOR MULTIPLE, RELATIVE WAYPOINTS
-					// Also, I am only translating otherwise things get weird
-					
-					Eigen::Isometry3d desiredLeft  = this->robot->hand_pose("left");
-					desiredLeft.translation() += leftWaypoints[0].translation();
-					                               
-					
-					Eigen::Isometry3d desiredRight = this->robot->hand_pose("right");
-					desiredRight.translation() += rightWaypoints[0].translation();
-					
-					this->robot->move_to_pose(desiredLeft,desiredRight,times[0]);     // Send the commands onward
-					
-					return true;
-				}
-				catch(const std::exception &exception)
-				{
-					std::cout << exception.what() << std::endl;                       // Print out the problem
-					
-					return false;
-				}
+				// NOTE: HERE I AM ASSUMING ONLY 1 WAYPOINT, BUT I NEED TO PROGRAM
+				// FOR MULTIPLE, RELATIVE WAYPOINTS
+				// Also, I am only translating otherwise things get weird
+				
+				Eigen::Isometry3d desiredLeft  = this->robot->hand_pose("left");
+				desiredLeft.translation() += leftWaypoints[0].translation();
+				                               
+				
+				Eigen::Isometry3d desiredRight = this->robot->hand_pose("right");
+				desiredRight.translation() += rightWaypoints[0].translation();
+				
+				return this->robot->move_to_pose(desiredLeft,desiredRight,times[0]); // Send the commands onward
 			}  
 		}
 
 		// Move a grasped object by a prescribed action
 		bool perform_grasp_action(const std::string& actionName)
 		{
+			// Variables in this scope
+			std::vector<Eigen::Isometry3d> objectWaypoints;
+			std::vector<double> waypointTimes;
+			Type type;                                                                  // Relative or absolute motion
+			
 			if(not this->robot->is_grasping())
 			{
-				std::cerr << errorMessage << " perform_grasp_action(): "
+				std::cerr << errorMessage << "perform_grasp_action(): "
 				          << "Not currently holding anything!\n";
 				
 				return false;
 			}
 			
-			temp = graspActionMap.
+			auto temp = graspActionMap->find(actionName);                               // Temporary placeholder for the iterator
 			
-			std::cout << "perform_grasp_action() not yet complete.\n";
-			return true;
+			if(temp == graspActionMap->end())
+			{
+				std::cerr << errorMessage << "perform_grasp_action(): "
+				          << "Could not find the action named '"
+				          << actionName << "' in the list.\n";
+				          
+				return false;
+			}
+			else
+			{
+				objectWaypoints = temp->second.waypoints;
+				waypointTimes   = temp->second.times;
+				type            = temp->second.type;
+			}
+			
+			if(type == absolute)
+			{
+				return this->robot->move_object(objectWaypoints,waypointTimes);
+			}
+			else // type == relative
+			{
+				// NOTE: For now I am assuming only 1 waypoint, and I am
+				// only translating. Need to expand in the future for multiple,
+				// relative waypoints, rotations, etc.
+				
+				Eigen::Isometry3d desiredPose = this->robot->object_pose();
+				
+				desiredPose.translation() += objectWaypoints[0].translation();
+				
+				return this->robot->move_object(desiredPose,waypointTimes[0]);
+			}
 		}
 
 		// Move the configuration of the joints by a prescribed action
@@ -263,7 +288,7 @@ class CommandServer : public CommandInterface
 		
 		std::map<std::string, JointTrajectory> *jointActionMap;                             // Map of prescribed joint configurations
 
-		std::map<std::string, CartesianMotion> *leftHandMap, *rightHandMap, graspActionMap;
+		std::map<std::string, CartesianMotion> *leftHandMap, *rightHandMap, *graspActionMap;
 };                                                                                                  // Semicolon needed after class declaration
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -327,11 +352,11 @@ int main(int argc, char* argv[])
 		
 		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("names").asList(); // Find all the listed names
 		
-		std::vector<std::string> nameList = string_from_bottle(bottle);                     // Convert to vector of strings
+		std::vector<std::string> nameList = string_from_bottle(bottle);                            // Convert to vector of strings
 		
-		std::map<std::string, CartesianMotion> leftHandMap;                                 // Create the map so we can search it later
+		std::map<std::string, CartesianMotion> leftHandMap;                                        // Create the map so we can search it later
 		
-		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("left").asList(); // Get all the actions listed for the left hand
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("left").asList();  // Get all the actions listed for the left hand
 		
 		if(bottle == nullptr)
 		{
@@ -340,12 +365,12 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;          // Try and put the named actions together in the map
+		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;                 // Try and put the named actions together in the map
 		
 		// Load the right hand actions from the config file
 		std::map<std::string, CartesianMotion> rightHandMap;
 		
-		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("right").asList();
+		bottle->clear(); bottle = parameter.findGroup("CARTESIAN_ACTIONS").find("right").asList(); // Find all the right hand actions
 		
 		if(bottle == nullptr)
 		{
@@ -354,30 +379,24 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;
+		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;                // Put them in to the map
+		
 		
 		// Load the grasp actions from the config file
-		std::map<std::string, CartesianMotion> graspActionMap;
-		bottle->clear(); bottle = parameter.findGroup("GRASP_ACTIONS").find("names").asList();
-		nameList = string_from_bottle(bottle);
+		std::map<std::string, CartesianMotion> graspActionMap;                                     // Create map object
 		
-		bottle->clear(); bottle = &parameter.findGroup("GRASP_ACTIONS");
-		
-		std::cout << "Fine" << std::endl;
+		bottle->clear(); bottle = &parameter.findGroup("GRASP_ACTIONS");                           // Find grasp actions in config file
 		
 		if(bottle == nullptr)
 		{
 			std::cerr << errorMessage << "Could not find the the group called GRASP_ACTIONS "
 			                          << " in " << pathToConfig << ".\n";
-			
 			return 1;
 		}
 		
-		std::cout << "Still fine" << std::endl;
+		nameList = string_from_bottle(bottle->find("names").asList());                             // Get all the names
 		
-		if(not load_cartesian_trajectories(bottle,nameList,graspActionMap)) return 1;
-	
-	
+		if(not load_cartesian_trajectories(bottle,nameList,graspActionMap)) return 1;              // Load actions in to map
 	
 		
 		PositionControl robot(pathToURDF, jointNames, portList, robotModel);                // Start up the robot
@@ -411,7 +430,12 @@ int main(int argc, char* argv[])
 		// Establish communication over YARP
 		yarp::os::Network yarp;
 		yarp::os::Port port;
-		CommandServer commandServer(&robot, &jointActionMap, &leftHandMap, &rightHandMap);  // Create command server
+		CommandServer commandServer(&robot,
+		                            &jointActionMap,
+		                            &leftHandMap,
+		                            &rightHandMap,
+		                            &graspActionMap);  // Create command server
+		                            
 		commandServer.yarp().attachAsServer(port);
 		
 		if(not port.open("/commandServer"))
