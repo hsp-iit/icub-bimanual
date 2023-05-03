@@ -419,9 +419,9 @@ bool iCubBase::release_object()
 {
 	if(this->isGrasping)
 	{
-		this->isGrasping = false;
+		this->isGrasping = false;                                                          // Deactivate grasp constraints
 		
-		// Move the hands apart?
+		move_to_pose(this->leftPose,this->rightPose,1.0);                                  // Maintain current hand poses		
 		
 		return true;
 	}
