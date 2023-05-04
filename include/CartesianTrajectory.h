@@ -17,9 +17,16 @@ class CartesianTrajectory
 	public:
 		CartesianTrajectory() {}                                                            // Empty constructor
 		
+		// Delegating constructor
 		CartesianTrajectory(const std::vector<Eigen::Isometry3d> &poses,
-		                    const std::vector<double>            &times);                   // Full constructor
-		                    
+		                    const std::vector<double>            &times)
+		:
+		CartesianTrajectory(poses,times,Eigen::MatrixXd::Zero(6,1)) {}
+
+		// Full constructor
+		CartesianTrajectory(const std::vector<Eigen::Isometry3d> &poses,
+		                    const std::vector<double>            &times,
+		                    const Eigen::Matrix<double,6,1>      &startVelocity);
 		                    
 		Eigen::Isometry3d get_pose(const double &time);
 		            
