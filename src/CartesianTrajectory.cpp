@@ -4,7 +4,8 @@
  //                                         Constructor                                            //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &poses,
-                                         const std::vector<double>            &times)
+                                         const std::vector<double>            &times,
+                                         const Eigen::Matrix<double,6,1>      &startVelocity)
                                          :
                                          numPoses(poses.size())
 {
@@ -43,34 +44,9 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 			if(angle > M_PI) angle = 2*M_PI - angle;                                    // Ensure the range is [-3.14159, 3.14159]
 			
 			// Orientation component = angle*axis
-			points[3][i] = angle*(R(2,1)-R(1,2));
-			points[4][i] = angle*(R(0,2)-R(2,0));
-			points[5][i] = angle*(R(1,0)-R(0,1));
-			
-			
-			// Extract the orientation as Euler anggles
-			// NOTE: This is not ideal due to gimbal lock...
-			/*
-			Eigen::Matrix<double,3,3> R = poses[i].rotation();                          // SO(3) matrix
-		 	double roll, pitch, yaw;
-		 	
-		 	if(abs(R(0,2)) != 1)
-		 	{
-		 		pitch = asin(R(0,2));
-		 		roll  = atan2(-R(1,2),R(2,2));
-		 		yaw   = atan2(-R(0,1),R(0,0));
-		 	}
-		 	else // Gimbal lock; yaw - roll = atan2(R(1,0),R(1,1));
-		 	{
-		 		pitch = -M_PI/2;
-		 		roll  = atan2(-R(1,0),R(1,1));
-		 		yaw   = 0;
-		 	}
-		 	
-		 	points[3][i] = roll;
-		 	points[4][i] = pitch;
-		 	points[5][i] = yaw;
-		 	*/
+			points[3][i] = angle*(R(2,1)-R(1,2));                                       // x component
+			points[4][i] = angle*(R(0,2)-R(2,0));                                       // y component
+			points[5][i] = angle*(R(1,0)-R(0,1));                                       // z component
 		}
 		 
 		// Now insert them in to the iDynTree::CubicSpline object
@@ -82,6 +58,7 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 				errorMessage += "Unable to set the spline data.";
 				throw std::runtime_error(errorMessage);
 			}
+			else this->spline[i].setInitialConditions(startVelocity[i],0.0);
 		}
 	}
 }
