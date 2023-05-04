@@ -17,16 +17,20 @@ class Payload
 		
 		Payload(const Eigen::Isometry3d &localPose) : _localPose(localPose) {}        
 		
-		Eigen::Isometry3d pose() const { return this->_globalPose; }                               
+		Eigen::Isometry3d pose() const { return this->_globalPose; }    
+		
+		Eigen::Matrix<double,6,1> twist() const { return this->_twist; }                           
 		
 		void update_state(const Eigen::Isometry3d &globalToLocal,
 		                  const Eigen::Matrix<double,6,1> &twist);
 		
 	private:
-		Eigen::Isometry3d _localPose;                                                        // Transform from contact point to centre of mass
-		                                                    
-		Eigen::Isometry3d _globalPose;                                                       // Pose in the global frame                                      
 		
+		Eigen::Isometry3d _localPose;                                                       // Transform from contact point to centre of mass
+		                                                    
+		Eigen::Isometry3d _globalPose;                                                      // Pose in the global frame                                      
+		
+		Eigen::Matrix<double,6,1> _twist;                                                   // Linear & angular velocity
 	
 };                                                                                                  // Semicolon needed after class declaration
 
