@@ -312,6 +312,7 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 			
 				return false;
 			}
+			else this->jointTrajectory[i].setInitialConditions(this->qdot[i],0.0);      // Use the current joint velocity
 		}
 		
 		this->endTime = times.back();                                                       // Assign the end time
@@ -359,7 +360,12 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 	
 	try
 	{
-		this->leftTrajectory  = CartesianTrajectory(leftPoints,t);                          // Assign new trajectory for left hand
+		Eigen::Matrix<double,6,1> twist = iDynTree::toEigen(this->computer.getFrameVel("left"));
+		
+		this->leftTrajectory  = CartesianTrajectory(leftPoints,t,twist);                    // Assign new trajectory for left hand
+		
+		twist = iDynTree::toEigen(this->computer.getFrameVel("right"));
+		
 		this->rightTrajectory = CartesianTrajectory(rightPoints,t);                         // Assign new trajectory for right hand
 		
 		this->endTime = times.back();                                                       // For checking when done
