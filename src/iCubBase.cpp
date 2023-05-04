@@ -493,7 +493,8 @@ bool iCubBase::move_object(const std::vector<Eigen::Isometry3d> &poses,
 	
 	try
 	{
-		this->payloadTrajectory = CartesianTrajectory(waypoints, t);                        // Create new trajectory to follow
+		
+		this->payloadTrajectory = CartesianTrajectory(waypoints, t, this->payload.twist()); // Create new trajectory to follow
 		
 		this->endTime = times.back();                                                       // Assign the end time
 		
