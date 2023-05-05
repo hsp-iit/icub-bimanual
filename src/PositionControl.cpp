@@ -175,10 +175,10 @@ void PositionControl::run()
 				else // Solve Damped Least Squares (DLS)
 				{
 					std::cout << "[WARNING] [POSITION CONTROL] Robot is (near) singular! "
-					          << "Manipulability " << mu << ". Try changing the joint configuration.\n";
+					          << "Manipulability is " << mu << " and threshold was set at "
+					          << this->threshold << ".\n";
 					          
-					// This doesn't seem to be working well:
-					/*
+					/* This isn't working very well
 					double damping = (1-pow(mu/this->threshold,2))*this->maxDamping;
 					
 					std::cout << "Damping: " << damping << std::endl;
@@ -203,26 +203,22 @@ void PositionControl::run()
 					catch(const std::exception &exception)
 					{
 						std::cout << exception.what() << std::endl;
-					}
-					*/
+					}*/
+					
 				}
 				
 				if(this->isGrasping)
 				{
 					// Resolve the QP problem subject to grasp constraints
 					
+					Eigen::VectorXd dc(6); dc.setZero();
+					
 					try
 					{
 						Eigen::MatrixXd Jc = this->C*this->J;
 						
 						// Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
-						dq = QPSolver::least_squares(dq,
-						                             this->M,
-						                             Eigen::VectorXd::Zero(6),
-						                             Jc,
-						                             lowerBound,
-						                             upperBound,
-						                             dq);
+						dq = QPSolver::least_squares(dq, this->M, dc, Jc, lowerBound, upperBound, dq);
 					}
 					catch(const std::exception &exception)
 					{
@@ -321,6 +317,15 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 	
 	return dq;
 }
+ 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                       Compute a fake grasp force to apply between hands                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
+{
+	Eigen::Matrix<double,6,1> temp;temp.setZero();
+	return temp;
+}
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                       Standard Cartesian method for iCub2                                     //
@@ -335,10 +340,13 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 	// interior point method directly rather than use a shortcut function
 	// (ノಠ益ಠ)ノ彡┻━┻
 	
+	Eigen::VectorXd dq(this->numJoints); dq.setZero();                                          // We want to solve for this
+	
 	// Constraint vector does not change						
 	// z = [   -dq_max  ]
 	//     [    dq_min  ]
 	//     [ -(A*q + b) ]
+	
 	Eigen::VectorXd z(2*this->numJoints+10);
 	z.block(              0, 0, this->numJoints, 1) = -upperBound;
 	z.block(this->numJoints, 0, this->numJoints, 1) =  lowerBound;
@@ -348,7 +356,7 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 	
 	if(mu > this->threshold)                                                                    // i.e. not singular
 	{	
-		Eigen::VectorXd startPoint(12+this->numJoints);                                     // +12 for Lagrange multiplier
+		Eigen::VectorXd startPoint(12+this->numJoints);                                     // +12 for Lagrange multipliers
 	
 		if(QPSolver::last_solution_exists())
 		{
@@ -408,23 +416,22 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		
 		try // to solve the QP problem
 		{
-			return (QPSolver::solve(H,f,this->B,z,startPoint)).tail(this->numJoints);         // We don't need the Lagrange multipliers
+			dq = (QPSolver::solve(H,f,this->B,z,startPoint)).tail(this->numJoints);     // We don't need the Lagrange multipliers
 		}
 		catch(const std::exception &exception)
 		{
 			std::cout << exception.what() << std::endl;                                 // Print the problem
-		
-			return Eigen::VectorXd::Zero(this->numJoints);                              // Don't move
 		}
 	}
 	else // solve the damped least squares method
 	{
-
-		double damping = (1 - mu/this->threshold)*this->maxDamping;
-		
 		std::cout << "[WARNING] [POSITION CONTROL] Robot configuration is singular! "
 		          << "Manipulability is " << mu << " and the threshold is set at "
 		          << this->threshold << ".\n";
+		          
+		// NOTE: Doesn't seem to be working well, so I stopped it for now
+		
+		double damping = (1 - mu/this->threshold)*this->maxDamping;
 		
 		Eigen::VectorXd startPoint(this->numJoints);
 		
@@ -461,15 +468,63 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		
 		try // to solve the QP problem
 		{
-			return QPSolver::solve(H,f,this->Bsmall,z,startPoint);
+			dq = QPSolver::solve(H,f,this->Bsmall,z,startPoint);
+		}
+		catch(const std::exception &exception)
+		{
+			std::cout << exception.what() << std::endl;
+		}
+	}
+	
+	if(this->isGrasping)
+	{
+		// Solve again subject to grasp constraints
+		
+		Eigen::MatrixXd Jc = this->C*this->J;                                               // Constraint matrix
+		
+		Eigen::VectorXd dc(6); dc.setZero();                                            // Constraint motion
+		
+		// H = [ 0   Jc ]
+		//     [ Jc' I  ]
+		Eigen::MatrixXd H(6+this->numJoints,6+this->numJoints);
+		H.block( 0, 0,               6,               6).setZero();
+		H.block( 0, 6,               6, this->numJoints) = Jc;
+		H.block( 6, 0, this->numJoints,               6) = Jc.transpose();
+		H.block( 6, 6, this->numJoints, this->numJoints).setIdentity();
+		
+		// f = [  0  ]
+		//     [ -dq ]
+		Eigen::VectorXd f(6+this->numJoints);
+		f.head(6) = -dc;
+		f.tail(this->numJoints) = -dq;
+		
+		// B = [ 0  -I ]
+		//     [ 0   I ]
+		//     [ 0   A ]
+		// NOTE: this->B is a (10+2n)x(12+n) since there are 12 Lagrange multipliers
+		// when controlling two hands. Here, there are 6 Lagrange multipliers so
+		// we need B as (10+2n,6+n)
+		
+		// B.block(6,0,10+2*this->numJoints,6+this->numJoints);
+		
+		Eigen::VectorXd startPoint(6+this->numJoints);
+		startPoint.head(6)               = (Jc*Jc.transpose()).partialPivLu().solve(Jc*dq - dc); // Lagrange multipliers for the grasp constraint
+		startPoint.tail(this->numJoints) = dq;                                              // Use current solution
+		
+		try
+		{
+			dq = (QPSolver::solve(H,f,this->B.block(0,6,10+2*this->numJoints,6+this->numJoints),
+			                      z, startPoint)).tail(this->numJoints);                // Remove Lagrange multipliers from the solution
 		}
 		catch(const std::exception &exception)
 		{
 			std::cout << exception.what() << std::endl;
 			
-			return Eigen::VectorXd::Zero(this->numJoints);
+			dq.setZero();                                                               // Don't move!
 		}
 	}
+	
+	return dq;
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
