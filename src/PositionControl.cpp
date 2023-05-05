@@ -211,7 +211,9 @@ void PositionControl::run()
 				{
 					// Resolve the QP problem subject to grasp constraints
 					
-					Eigen::VectorXd dc(6); dc.setZero();
+					Eigen::Matrix<double,6,1> dc = grasp_correction();
+					
+					//Eigen::VectorXd dc(6) = grasp_correction();
 					
 					try
 					{
@@ -323,7 +325,16 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 {
-	Eigen::Matrix<double,6,1> temp;temp.setZero();
+	Eigen::Matrix3d R = this->leftPose.rotation();
+	
+	double actualWidth = (this->leftPose.translation() - this->rightPose.translation()).norm();
+	
+	double scalar = this->kp*(this->graspWidth - actualWidth)/2;
+	
+	Eigen::Matrix<double,6,1> temp;
+	temp.head(3) = scalar*(R.col(0) + R.col(1) + R.col(2));
+	temp.tail(3).setZero();
+	
 	return temp;
 }
 
@@ -482,7 +493,9 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		
 		Eigen::MatrixXd Jc = this->C*this->J;                                               // Constraint matrix
 		
-		Eigen::VectorXd dc(6); dc.setZero();                                            // Constraint motion
+		Eigen::Matrix<double,6,1> dc = grasp_correction();
+		
+//		Eigen::VectorXd dc(6); dc.setZero();                                            // Constraint motion
 		
 		// H = [ 0   Jc ]
 		//     [ Jc' I  ]
