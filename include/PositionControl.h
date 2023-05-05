@@ -65,16 +65,15 @@ class PositionControl : public iCubBase
 		///////////////////////////////////////////////////////////////////////////////////
 		
 	protected:
+	
 		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
 
-		Eigen::Matrix<double,12,1> lagrange_multipliers(const Eigen::Matrix<double,12,1> &dx,
-		                                                const Eigen::VectorXd &redundantTask);
+		Eigen::Matrix<double,6,1> grasp_correction();                                       
 		
 		/////////////////////// Inherited from PeriodicThread class ///////////////////////
 		bool threadInit();
 		void run();
 		void threadRelease();
-		//////////////////////////////////////////////////////////////////////////////////
 		
 		//////////////////////// Methods & members specific to iCub2 //////////////////////
 		Eigen::MatrixXd A;                                                                  // Constraint matrix for the iCub2
@@ -91,6 +90,9 @@ class PositionControl : public iCubBase
 		                          const double &manipulability,
 		                          const Eigen::VectorXd &lowerBound,
 		                          const Eigen::VectorXd &upperBound);
+		                          
+		Eigen::Matrix<double,12,1> lagrange_multipliers(const Eigen::Matrix<double,12,1> &dx,
+                                                                const Eigen::VectorXd &redundantTask);
 		
 		
 };                                                                                                  // Semicolon needed after class declaration
