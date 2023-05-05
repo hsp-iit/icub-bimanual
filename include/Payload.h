@@ -17,12 +17,13 @@ class Payload
 		
 		Payload(const Eigen::Isometry3d &localPose) : _localPose(localPose) {}        
 		
-		Eigen::Isometry3d pose() const { return this->_globalPose; }    
+		Eigen::Isometry3d pose() const { return this->_globalPose; }      
 		
-		Eigen::Matrix<double,6,1> twist() const { return this->_twist; }                           
+		Eigen::Matrix<double,6,1> twist() const { return this->_twist; }
 		
 		void update_state(const Eigen::Isometry3d &globalToLocal,
-		                  const Eigen::Matrix<double,6,1> &twist);
+		                  const Eigen::Matrix<double,6,1> &contactTwist);
+		                  
 		
 	private:
 		

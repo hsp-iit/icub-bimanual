@@ -116,7 +116,7 @@ void PositionControl::run()
 		{
 			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);               // Get the required Cartesian motion
 			
-			Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->qRef);     // q OR qRef ???
+			Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->q);     // q OR qRef ???
 			
 			// Get the instantaneous limits on the joint motion
 			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
@@ -175,10 +175,10 @@ void PositionControl::run()
 				else // Solve Damped Least Squares (DLS)
 				{
 					std::cout << "[WARNING] [POSITION CONTROL] Robot is (near) singular! "
-					          << "Manipulability " << mu << ". Try changing the joint configuration.\n";
+					          << "Manipulability is " << mu << " and threshold was set at "
+					          << this->threshold << ".\n";
 					          
-					// This doesn't seem to be working well:
-					/*
+					/* This isn't working very well
 					double damping = (1-pow(mu/this->threshold,2))*this->maxDamping;
 					
 					std::cout << "Damping: " << damping << std::endl;
@@ -203,26 +203,22 @@ void PositionControl::run()
 					catch(const std::exception &exception)
 					{
 						std::cout << exception.what() << std::endl;
-					}
-					*/
+					}*/
+					
 				}
 				
 				if(this->isGrasping)
 				{
 					// Resolve the QP problem subject to grasp constraints
 					
+					Eigen::VectorXd dc(6); dc.setZero();
+					
 					try
 					{
 						Eigen::MatrixXd Jc = this->C*this->J;
 						
 						// Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
-						dq = QPSolver::least_squares(dq,
-						                             this->M,
-						                             Eigen::VectorXd::Zero(6),
-						                             Jc,
-						                             lowerBound,
-						                             upperBound,
-						                             dq);
+						dq = QPSolver::least_squares(dq, this->M, dc, Jc, lowerBound, upperBound, dq);
 					}
 					catch(const std::exception &exception)
 					{
@@ -320,6 +316,15 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 	for(int i = 0; i < this->numJoints; i++) dq[i] = this->jointTrajectory[i].evaluatePoint(time) - this->q[i];
 	
 	return dq;
+}
+ 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                       Compute a fake grasp force to apply between hands                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
+{
+	Eigen::Matrix<double,6,1> temp;temp.setZero();
+	return temp;
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -425,9 +430,9 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		          << this->threshold << ".\n";
 		          
 		// NOTE: Doesn't seem to be working well, so I stopped it for now
-		// double damping = (1 - mu/this->threshold)*this->maxDamping;
 		
-		/*
+		double damping = (1 - mu/this->threshold)*this->maxDamping;
+
 		Eigen::VectorXd startPoint(this->numJoints);
 		
 		if(QPSolver::last_solution_exists())
@@ -463,15 +468,12 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		
 		try // to solve the QP problem
 		{
-			return QPSolver::solve(H,f,this->Bsmall,z,startPoint);
+			dq = QPSolver::solve(H,f,this->Bsmall,z,startPoint);
 		}
 		catch(const std::exception &exception)
 		{
 			std::cout << exception.what() << std::endl;
-			
-			return Eigen::VectorXd::Zero(this->numJoints);
 		}
-		*/
 	}
 	
 	if(this->isGrasping)
@@ -480,7 +482,7 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		
 		Eigen::MatrixXd Jc = this->C*this->J;                                               // Constraint matrix
 		
-		Eigen::VectorXd dc(6); dc.setZero();                                                // Constraint motion
+		Eigen::VectorXd dc(6); dc.setZero();                                            // Constraint motion
 		
 		// H = [ 0   Jc ]
 		//     [ Jc' I  ]
@@ -493,7 +495,7 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		// f = [  0  ]
 		//     [ -dq ]
 		Eigen::VectorXd f(6+this->numJoints);
-		f.head(6) = dc;
+		f.head(6) = -dc;
 		f.tail(this->numJoints) = -dq;
 		
 		// B = [ 0  -I ]

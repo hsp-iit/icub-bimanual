@@ -139,7 +139,7 @@ class iCubBase : public QPSolver,
 		
 		Payload payload;                                                                    // Class for representing object being held
 		
-		CartesianTrajectory payloadTrajectory;
+		CartesianTrajectory payloadTrajectory;                                              // Trajectory generator for a grasped object
 		
 	private:
 		
@@ -147,15 +147,21 @@ class iCubBase : public QPSolver,
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
 		
 		// Functions
-		iDynTree::Transform Eigen_to_iDynTree(const Eigen::Isometry3d &T);                  // Converts from Eigen to iDynTree
-		Eigen::Isometry3d   iDynTree_to_Eigen(const iDynTree::Transform &T);
+		iDynTree::Transform Eigen_to_iDynTree(const Eigen::Isometry3d &T);                  // Convert Eigen::Isometry to iDynTree::Transform
+		
+		Eigen::Isometry3d iDynTree_to_Eigen(const iDynTree::Transform &T);                  // Convert iDynTree:Transform to Eigen::Isometry
 		
 		bool get_constraints(Eigen::MatrixXd &B, Eigen::VectorXf &z);                       // Get the control constraints based on robot model
 		
+		Eigen::Vector3d angle_axis(const Eigen::Matrix3d &R);
+		
 		// NOTE: THESE FUNCTIONS MUST BE DECLARED IN ANY CHILD CLASS OF THIS ONE
 		virtual bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum) = 0;
+		
 		virtual Eigen::VectorXd track_joint_trajectory(const double &time) = 0;
+		
 		virtual Eigen::Matrix<double,12,1> track_cartesian_trajectory(const double &time) = 0;
+		
 	
 		// NOTE: THESE FUNCTIONS ARE FROM THE PERIODICTHREAD CLASS AND NEED TO BE DEFINED
 		// IN THE CHILD CLASSES OF THIS ONE
