@@ -402,9 +402,9 @@ bool iCubBase::grasp_object()
 	{		
 		this->isGrasping = true;                                                            // Set grasp constraint
 		
-		double distance = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
+		this->graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
 		
-		Eigen::Isometry3d localPose(Eigen::Translation3d(0,-distance/2,0));                 // Negative y-axis of left hand, half the distance between hands
+		Eigen::Isometry3d localPose(Eigen::Translation3d(0,-graspWidth/2,0));               // Negative y-axis of left hand, half the distance between hands
 		
 		this->payload = Payload(localPose);                                                 // Set the payload
 		

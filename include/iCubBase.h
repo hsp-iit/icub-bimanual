@@ -141,6 +141,8 @@ class iCubBase : public QPSolver,
 		
 		CartesianTrajectory payloadTrajectory;                                              // Trajectory generator for a grasped object
 		
+		double graspWidth = 0.0;                                                            // Distance between hands from initial grasp
+		
 	private:
 		
 		// Kinematic & dynamic modelling
