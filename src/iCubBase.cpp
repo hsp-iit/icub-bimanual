@@ -366,7 +366,7 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 		
 		twist = iDynTree::toEigen(this->computer.getFrameVel("right"));
 		
-		this->rightTrajectory = CartesianTrajectory(rightPoints,t);                         // Assign new trajectory for right hand
+		this->rightTrajectory = CartesianTrajectory(rightPoints,t, twist);                  // Assign new trajectory for right hand
 		
 		this->endTime = times.back();                                                       // For checking when done
 		
@@ -493,7 +493,7 @@ bool iCubBase::move_object(const std::vector<Eigen::Isometry3d> &poses,
 	
 	try
 	{
-		this->payloadTrajectory = CartesianTrajectory(waypoints, t);                        // Create new trajectory to follow
+		this->payloadTrajectory = CartesianTrajectory(waypoints, t,this->payload.twist());  // Create new trajectory to follow
 		
 		this->endTime = times.back();                                                       // Assign the end time
 		
@@ -522,12 +522,7 @@ Eigen::Matrix<double,6,1> iCubBase::pose_error(const Eigen::Isometry3d &desired,
 	
 	error.head(3) = desired.translation() - actual.translation();                               // Position / translation error
 	
-	Eigen::Matrix<double,3,3> R = desired.rotation()*actual.rotation().inverse();               // Rotation error as SO(3)
-	
-	// "Unskew" the rotation error
-	error(3) = R(2,1);
-	error(4) = R(0,2);
-	error(5) = R(1,0);
+	error.tail(3) = angle_axis(desired.rotation()*(actual.rotation().transpose()));             // Get angle*axis representation of Rd*Ra'
 	
 	return error;
 }
@@ -628,6 +623,27 @@ bool iCubBase::set_singularity_avoidance_params(const double &_maxDamping, const
 		return true;
 	}
 }
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                Decompose a rotation matrix in to its angle*axis representation                //
+///////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::Vector3d iCubBase::angle_axis(const Eigen::Matrix3d &R)
+{
+	double trace = R(0,0) + R(1,1) + R(2,2);
+	
+	double angle = acos((trace-1)/2);
+	
+	if(abs(angle) < 1e-05) return Eigen::Vector3d::Zero();                                      
+	else
+	{
+		if(angle > M_PI) angle = 2*M_PI - angle;                                            // Ensure angle is within [-3.14159, 3.14159]
+		
+		return Eigen::Vector3d(angle*(R(2,1)-R(1,2)),
+		                       angle*(R(0,2)-R(2,0)),
+		                       angle*(R(1,0)-R(0,1)));
+	}
+}
+		
 
 /*
 iCubBase::iCubBase(const std::string              &pathToURDF,
