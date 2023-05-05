@@ -1,18 +1,5 @@
 #include <QPSolver.h>                                                                               // Declaration of functions
 
-  /////////////////////////////////////////////////////////////////////////////////////////////////////
- //                                Get the last solution for re-use                                 //
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-Eigen::VectorXd QPSolver::last_solution()
-{
-	if(lastSolutionExists) return this->lastSolution;
-	else
-	{
-		throw std::runtime_error("[ERROR] [QPSOLVER] last_solution(): Interior point method has not been called yet. No solution exists.");
-	}
-}
-
-
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //                        Solve a generic QP problem min 0.5*x'*H*x + x'*f                       //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -278,10 +265,10 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &y,
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //       Solve a least squares problem of the form min 0.5*(xd-x)'*W*(xd-x)  s.t. A*x = y        //
 ///////////////////////////////////////////////////////////////////////////////////////////////////                                  
-Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
-                                        const Eigen::MatrixXd &W,
-                                        const Eigen::VectorXd &y,
-                                        const Eigen::MatrixXd &A)
+Eigen::VectorXd QPSolver::redundant_least_squares(const Eigen::VectorXd &xd,
+                                                  const Eigen::MatrixXd &W,
+                                                  const Eigen::VectorXd &y,
+                                                  const Eigen::MatrixXd &A)
 {
 	if(W.rows() != W.cols())
 	{
@@ -343,13 +330,13 @@ Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
   ///////////////////////////////////////////////////////////////////////////////////////////////////
  //     Solve a problem of the form min 0.5*(xd-x)'*W*(xd-x)  s.t. A*x = y, xMin <= x <= xMax     //
 ///////////////////////////////////////////////////////////////////////////////////////////////////  
-Eigen::VectorXd QPSolver::least_squares(const Eigen::VectorXd &xd,
-                                        const Eigen::MatrixXd &W,
-                                        const Eigen::VectorXd &y,
-                                        const Eigen::MatrixXd &A,
-                                        const Eigen::VectorXd &xMin,
-                                        const Eigen::VectorXd &xMax,
-                                        const Eigen::VectorXd &x0)
+Eigen::VectorXd QPSolver::redundant_least_squares(const Eigen::VectorXd &xd,
+                                                  const Eigen::MatrixXd &W,
+                                                  const Eigen::VectorXd &y,
+                                                  const Eigen::MatrixXd &A,
+                                                  const Eigen::VectorXd &xMin,
+                                                  const Eigen::VectorXd &xMax,
+                                                  const Eigen::VectorXd &x0)
 {
 	unsigned int m = y.size();
 	unsigned int n = x0.size();

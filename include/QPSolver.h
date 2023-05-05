@@ -15,15 +15,15 @@ class QPSolver
 		static Eigen::VectorXd solve(const Eigen::MatrixXd &H,                              // Solve a generic QP problem
 		                             const Eigen::VectorXd &f);
 		                             
-		static Eigen::VectorXd least_squares(const Eigen::VectorXd &y,                      // Solve an unconstrained least squares problem
+		static Eigen::VectorXd least_squares(const Eigen::VectorXd &y,
 		                                     const Eigen::MatrixXd &A,
-		                                     const Eigen::MatrixXd &W);
+		                                     const Eigen::MatrixXd &W);                     // Solve a standard least squares problem
 		                                     
-		static Eigen::VectorXd least_squares(const Eigen::VectorXd &xd,                     // Solve least squares with equality constraints
-		                                     const Eigen::MatrixXd &W,
-		                                     const Eigen::VectorXd &y,
-		                                     const Eigen::MatrixXd &A);
-		                                     
+		static Eigen::VectorXd redundant_least_squares(const Eigen::VectorXd &xd,
+		                                               const Eigen::MatrixXd &W,
+		                                               const Eigen::VectorXd &y,
+		                                               const Eigen::MatrixXd &A);           // Solve a redundant least squares problem
+		                                      
 		// These functions require an object to be created since they use the
 		// interior point solver:
 		Eigen::VectorXd solve(const Eigen::MatrixXd &H,                                     // Solve QP problem with inequality constraints
@@ -39,21 +39,19 @@ class QPSolver
 		                              const Eigen::VectorXd &xMax,
 		                              const Eigen::VectorXd &x0);
 		                              
-		Eigen::VectorXd least_squares(const Eigen::VectorXd &xd,                            // Solve a constrained least squares problem
-		                              const Eigen::MatrixXd &W,
-		                              const Eigen::VectorXd &y,
-		                              const Eigen::MatrixXd &A,
-		                              const Eigen::VectorXd &xMin,
-		                              const Eigen::VectorXd &xMax,
-		                              const Eigen::VectorXd &x0);
+		Eigen::VectorXd redundant_least_squares(const Eigen::VectorXd &xd,                   // Solve a constrained least squares problem
+		                                        const Eigen::MatrixXd &W,
+		                                        const Eigen::VectorXd &y,
+		                                        const Eigen::MatrixXd &A,
+		                                        const Eigen::VectorXd &xMin,
+		                                        const Eigen::VectorXd &xMax,
+		                                        const Eigen::VectorXd &x0);
 		                              
 		Eigen::VectorXd last_solution() const { return this->lastSolution; }                // As it says on the label
 		
 		void clear_last_solution() { this->lastSolutionExists = false; }                    // Clear the last solution
 		
 		bool last_solution_exists() const { return this->lastSolutionExists; }
-		
-		Eigen::VectorXd last_solution();
 		                         
 	private:
 		// These are variables used by the interior point method:
