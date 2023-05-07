@@ -236,7 +236,11 @@ Eigen::Isometry3d iCubBase::iDynTree_to_Eigen(const iDynTree::Transform &T)
 bool iCubBase::move_to_position(const Eigen::VectorXd &position,
                                 const double &time)
 {
-	if(position.size() != this->numJoints)
+	if((this->q - position).norm() < 0.5 and this->qdot.norm() < 0.5)
+	{
+		return true;            // Already there
+	}
+	else if(position.size() != this->numJoints)
 	{
 		std::cerr << "[ERROR] [ICUB BASE] move_to_position(): "
 			  << "Position vector had " << position.size() << " elements, "
@@ -325,13 +329,16 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                Move each hand to a desired pose                                //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::move_to_pose(const Eigen::Isometry3d &leftPose,
-                            const Eigen::Isometry3d &rightPose,
+bool iCubBase::move_to_pose(const Eigen::Isometry3d &desiredLeft,
+                            const Eigen::Isometry3d &desiredRight,
                             const double &time)
 {
+	if( (pose_error(desiredLeft,this->leftPose)).norm() < 0.01
+	and (pose_error(desiredRight,this->rightPose)).norm() < 0.01) return true;                  // Already there	
+	
 	// Put them in to std::vector objects and pass onward
-	std::vector<Eigen::Isometry3d> leftPoses(1,leftPose);
-	std::vector<Eigen::Isometry3d> rightPoses(1,rightPose);
+	std::vector<Eigen::Isometry3d> leftPoses(1,desiredLeft);
+	std::vector<Eigen::Isometry3d> rightPoses(1,desiredRight);
 	std::vector<double> times(1,time);
 	
 	return move_to_poses(leftPoses,rightPoses,times);                                           // Call full function
