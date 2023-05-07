@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SESSION="bimanual"                                                                       # So we can reference $SESSION later
+SERVERNAME="/commandServer"
 
 # Options
 #CONFIG="~/workspace/icub-bimanual/config/ergocub.ini"
@@ -53,7 +54,7 @@ tmux send-keys -t $SESSION "gazebo $WORLD" Enter                                
 
 # Split the pane, launch the command server
 tmux select-pane -t 4
-tmux send-keys -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $PORT $URDF $CONFIG" Enter
+tmux send-keys -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $SERVERNAME $PORT $URDF $CONFIG" Enter
 
 tmux attach-session -t $SESSION:0                                                        # REQUIRED or the above won't execute
 
