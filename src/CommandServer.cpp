@@ -299,23 +299,24 @@ int main(int argc, char* argv[])
 	std::string errorMessage = "[ERROR] [iCUB COMMAND SERVER] ";
 	
 	// Default for argc is 1, but I don't know why ¯\_(ツ)_/¯
-	if(argc != 4)
+	if(argc != 5)
 	{
 		std::cerr << errorMessage << "Port name, path to URDF, and path to config file are required. "
-		          << "Usage: ./command_server /portPrefix /path/to/model.urdf /path/to/config.ini\n";
+		          << "Usage: ./command_server /serverPortName /robotPortName /path/to/model.urdf /path/to/config.ini\n";
 		
 		return 1;                                                                           // Close with error
 	}
 
-	std::string portPrefix   = argv[1];                                                         // Get the port names
-	std::string pathToURDF   = argv[2];                                                         // Get the file path
-	std::string pathToConfig = argv[3];                                                         // Path to the configuration file
+	std::string serverPortName  = argv[1];
+	std::string robotPortPrefix = argv[2];                                                      // Get the port names
+	std::string pathToURDF      = argv[3];                                                      // Get the file path
+	std::string pathToConfig    = argv[4];                                                      // Path to the configuration file
 	
 	// Generate port list prefixes
 	std::vector<std::string> portList;
-	portList.push_back(portPrefix + "/torso");
-	portList.push_back(portPrefix + "/left_arm");
-	portList.push_back(portPrefix + "/right_arm");
+	portList.push_back(robotPortPrefix + "/torso");
+	portList.push_back(robotPortPrefix + "/left_arm");
+	portList.push_back(robotPortPrefix + "/right_arm");
 	
 	yarp::os::Property parameter; parameter.fromConfigFile(pathToConfig);                       // Load the properties from the config file
 		
@@ -438,7 +439,7 @@ int main(int argc, char* argv[])
 		                            
 		commandServer.yarp().attachAsServer(port);
 		
-		if(not port.open("/commandServer"))
+		if(not port.open(serverPortName))
 		{
 			std::cerr << errorMessage << "Could not open port /commandServer.\n";
 			return 1;

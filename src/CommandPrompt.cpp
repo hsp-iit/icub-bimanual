@@ -18,16 +18,18 @@ std::map<std::string,int> commandList;                                          
 int main(int argc, char* argv[])
 {
 	// Minimum is 1, but I don't know why ¯\_(ツ)_/¯
-	if(argc != 2)
+	if(argc != 3)
 	{
 		std::cerr << errorMessage << "Path to configuration file required. "
-		          << "Usage: ./command_prompt /path/to/config.ini\n";
+		          << "Usage: ./command_prompt /serverPortName /path/to/config.ini\n";
 		          
 		return 1;
 	}
 	
+	std::string serverPortName = argv[1];
+	
 	// Load the list of predefined joint configuration names
-	yarp::os::Property parameter; parameter.fromConfigFile(argv[1]);                            // Load the properties from the config file
+	yarp::os::Property parameter; parameter.fromConfigFile(argv[2]);                            // Load the properties from the config file
 	yarp::os::Bottle* bottle = parameter.findGroup("JOINT_SPACE_ACTIONS").find("names").asList();
 	std::vector<std::string> names = string_from_bottle(bottle);                                // Get the list of the configuration names
 	for(int i = 0; i < names.size(); i++) commandList.emplace(names[i],0);                      // Put them in to the map
@@ -53,7 +55,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	
-	if(not yarp.connect("/commandClient", "/commandServer"))
+	if(not yarp.connect("/commandClient", serverPortName))
 	{
 		std::cerr << errorMessage << "Could not connect '/commandClient' with '/commandServer'.\n";
 		return 1;
