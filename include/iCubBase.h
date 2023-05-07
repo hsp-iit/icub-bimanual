@@ -89,7 +89,7 @@ class iCubBase : public QPSolver,
 		
 		enum ControlSpace {joint, cartesian} controlSpace;
 		
-		bool isFinished = false;                                                            // For regulating control actions	
+		bool isFinished = true;                                                             // For regulating control actions	
 		
 		double startTime, endTime;                                                          // For regulating the control loop
 		
