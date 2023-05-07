@@ -44,7 +44,7 @@ class CommandServer : public CommandInterface
 		}
 
 		// Query if the robot is finished moving
-		bool is_finished() const { return this->robot->is_finished(); }
+		bool is_finished() { return this->robot->is_finished(); }
 		
 		// Move the hands by prescribed action
 		bool perform_cartesian_action(const std::string& actionName)
