@@ -262,6 +262,7 @@ bool iCubBase::move_to_position(const Eigen::VectorXd &position,
 void iCubBase::halt()
 {
 	if(isRunning()) stop();                                                                     // Stop any control threads that are running
+	this->isFinished = true;
 	send_joint_commands(this->q);                                                               // Hold current joint positions
 }
 
