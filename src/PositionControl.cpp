@@ -31,6 +31,8 @@ void PositionControl::run()
 	{
 		double elapsedTime = yarp::os::Time::now() - this->startTime;                       // Time since start of control
 		
+		if(elapsedTime > this->endTime) this->isFinished = true;                            
+		
 		Eigen::VectorXd dq(this->numJoints); dq.setZero();                                  // We want to solve for this		
 		
 		if(this->controlSpace == joint)
@@ -58,8 +60,8 @@ void PositionControl::run()
 					
 					for(int i = 0; i < this->numJoints; i++)
 					{
-					             if(startPoint(i) < lowerBound(i)) startPoint(i) = lowerBound(i) + 0.001; // Just above the lower bound
-						else if(startPoint(i) > upperBound(i)) startPoint(i) = upperBound(i) - 0.001; // Just below the upper bound
+					             if(startPoint(i) <= lowerBound(i)) startPoint(i) = lowerBound(i) + 0.1; // Just above the lower bound
+						else if(startPoint(i) >= upperBound(i)) startPoint(i) = upperBound(i) - 0.1; // Just below the upper bound
 					}
 				}
 				else startPoint = 0.5*(lowerBound + upperBound);
@@ -198,11 +200,10 @@ void PositionControl::run()
 					
 					//Eigen::VectorXd dc(6) = grasp_correction();
 					
-					try
+					try // Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
 					{
 						Eigen::MatrixXd Jc = this->C*this->J;
-						
-						// Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
+				
 						dq = QPSolver::redundant_least_squares(dq, this->M, dc, Jc, lowerBound, upperBound, dq);
 					}
 					catch(const std::exception &exception)
@@ -366,8 +367,8 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 			// Make sure the initial guess is within bounds or the QP solver will fail!
 			for(int i = 0; i < this->numJoints; i++)
 			{
-				     if(startPoint(12+i) < lowerBound(i)) startPoint(12+i) = lowerBound(i) + 0.01;
-				else if(startPoint(12+i) > upperBound(i)) startPoint(12+i) = upperBound(i) - 0.01;
+				     if(startPoint(12+i) <= lowerBound(i)) startPoint(12+i) = lowerBound(i) + 0.01;
+				else if(startPoint(12+i) >= upperBound(i)) startPoint(12+i) = upperBound(i) - 0.01;
 			}
 		}
 		else
