@@ -47,12 +47,12 @@ class iCubBase : public QPSolver,
 		// Cartesian control functions
 		bool is_grasping() const { return this->isGrasping; }                               // Check if grasp constraint is active
 		
-		bool move_to_pose(const Eigen::Isometry3d &leftPose,
-		                  const Eigen::Isometry3d &rightPose,
+		bool move_to_pose(const Eigen::Isometry3d &desiredLeft,
+		                  const Eigen::Isometry3d &desiredRight,
 		                  const double &time);                                              // Move each hand to a pose
 		                  
-		bool move_to_poses(const std::vector<Eigen::Isometry3d> &leftPoses,
-		                   const std::vector<Eigen::Isometry3d> &rightPoses,
+		bool move_to_poses(const std::vector<Eigen::Isometry3d> &left,
+		                   const std::vector<Eigen::Isometry3d> &right,
 		                   const std::vector<double> &times);                               // Move hands through several poses
 		                   
 		bool translate(const Eigen::Vector3d &left,
