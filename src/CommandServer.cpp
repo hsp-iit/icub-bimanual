@@ -98,6 +98,22 @@ class CommandServer : public CommandInterface
 			}
 			else // type == relative
 			{
+				// We need to convert the relative motions to absolute motions before passing on
+				std::vector<Eigen::Isometry3d> newLeftPoints, newRightPoints;
+				
+				newLeftPoints.push_back(this->robot->hand_pose("left")*leftWaypoints[0]);
+				
+				newRightPoints.push_back(this->robot->hand_pose("right")*rightWaypoints[0]);
+				
+				for(int i = 1; i < leftWaypoints.size(); i++)
+				{
+					newLeftPoints.push_back(newLeftPoints[i-1]*leftWaypoints[i]);
+					newRightPoints.push_back(newRightPoints[i-1]*rightWaypoints[i]);
+				}
+				
+				return this->robot->move_to_poses(newLeftPoints,newRightPoints,times);
+				
+				/*
 				// NOTE: HERE I AM ASSUMING ONLY 1 WAYPOINT, BUT I NEED TO PROGRAM
 				// FOR MULTIPLE, RELATIVE WAYPOINTS
 				// Also, I am only translating otherwise things get weird
@@ -108,8 +124,10 @@ class CommandServer : public CommandInterface
 				
 				Eigen::Isometry3d desiredRight = this->robot->hand_pose("right");
 				desiredRight.translation() += rightWaypoints[0].translation();
+
 				
 				return this->robot->move_to_pose(desiredLeft,desiredRight,times[0]); // Send the commands onward
+				*/
 			}  
 		}
 
@@ -152,6 +170,20 @@ class CommandServer : public CommandInterface
 			}
 			else // type == relative
 			{
+				// Transform relative poses to absolute poses
+				
+				std::vector<Eigen::Isometry3d> newObjectPoints;
+				
+				newObjectPoints.push_back(this->robot->object_pose()*objectWaypoints[0]);
+				
+				for(int i = 1; i < objectWaypoints.size(); i++)
+				{
+					newObjectPoints.push_back(newObjectPoints[i-1]*objectWaypoints[i]);
+				}
+				
+				return this->robot->move_object(newObjectPoints,waypointTimes);
+				
+				/*
 				// NOTE: For now I am assuming only 1 waypoint, and I am
 				// only translating. Need to expand in the future for multiple,
 				// relative waypoints, rotations, etc.
@@ -161,6 +193,7 @@ class CommandServer : public CommandInterface
 				desiredPose.translation() += objectWaypoints[0].translation();
 				
 				return this->robot->move_object(desiredPose,waypointTimes[0]);
+				*/
 			}
 		}
 
