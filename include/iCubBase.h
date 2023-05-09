@@ -117,9 +117,9 @@ class iCubBase : public QPSolver,
 		Eigen::Matrix<double,6,6> gainTemplate = (Eigen::MatrixXd(6,6) << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		                                                                  0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
 		                                                                  0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-		                                                                  0.0, 0.0, 0.0, 0.1, 0.0, 0.0,
-		                                                                  0.0, 0.0, 0.0, 0.0, 0.1, 0.0,
-		                                                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.1).finished();                    
+		                                                                  0.0, 0.0, 0.0, 0.5, 0.0, 0.0,
+		                                                                  0.0, 0.0, 0.0, 0.0, 0.5, 0.0,
+		                                                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.5).finished();                    
 		Eigen::Matrix<double,6,6> K = 1*this->gainTemplate;
 		
 		Eigen::Matrix<double,6,6> D = 2*this->gainTemplate;                                 // Theoretically optimal: kd >= 2*sqrt(kp)
@@ -142,6 +142,8 @@ class iCubBase : public QPSolver,
 		CartesianTrajectory payloadTrajectory;                                              // Trajectory generator for a grasped object
 		
 		double graspWidth = 0.0;                                                            // Distance between hands from initial grasp
+		
+		Eigen::Isometry3d relativePose;                                                     // Relative pose from left hand to right hand when grasping
 		
 	private:
 		
