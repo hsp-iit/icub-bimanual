@@ -53,10 +53,10 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 		{
 			temp.addAdditionalFrameToLink("l_hand_palm", "left",
 			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-			                                                  iDynTree::Position(-0.00346, 0.00266, -0.0592)));
+			                                                  iDynTree::Position(0, 0, -0.05)));
                 	temp.addAdditionalFrameToLink("r_hand_palm", "right",
                 				      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-                				                          iDynTree::Position(-0.00387, -0.00280, -0.0597)));
+                				                          iDynTree::Position(0, 0, -0.05)));
 			
 			this->basePose = iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
 			                                     iDynTree::Position(0,0,0));
@@ -409,8 +409,10 @@ bool iCubBase::grasp_object()
 	else
 	{		
 		this->isGrasping = true;                                                            // Set grasp constraint
+	
+		this->relativePose = this->leftPose.inverse()*this->rightPose;                      // This should give the right hand pose w.r.t left
 		
-		this->graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
+		// this->graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
 		
 		Eigen::Isometry3d localPose(Eigen::Translation3d(0,-graspWidth/2,0));               // Negative y-axis of left hand, half the distance between hands
 		
