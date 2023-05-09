@@ -309,6 +309,11 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 {
+	// Difference between desired offset between the hands (left->right)
+	// and the actual offset
+	return -this->K*pose_error(this->relativePose, this->leftPose.inverse()*this->rightPose); // Has to be negative???
+
+/*	Old method
 	Eigen::Matrix3d R = this->leftPose.rotation();
 	
 	double actualWidth = (this->leftPose.translation() - this->rightPose.translation()).norm();
@@ -318,8 +323,7 @@ Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 	Eigen::Matrix<double,6,1> temp;
 	temp.head(3) = scalar*(R.col(0) + R.col(1) + R.col(2));
 	temp.tail(3).setZero();
-	
-	return temp;
+*/
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
