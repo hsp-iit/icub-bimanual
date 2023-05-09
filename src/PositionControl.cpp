@@ -311,7 +311,7 @@ Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 {
 	// Difference between desired offset between the hands (left->right)
 	// and the actual offset
-	return -this->K*pose_error(this->relativePose, this->leftPose.inverse()*this->rightPose); // Has to be negative???
+	return -1*this->K*pose_error(this->relativePose, this->leftPose.inverse()*this->rightPose); // Has to be negative???
 
 /*	Old method
 	Eigen::Matrix3d R = this->leftPose.rotation();
