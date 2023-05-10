@@ -143,7 +143,7 @@ class iCubBase : public QPSolver,
 		
 		double graspWidth = 0.0;                                                            // Distance between hands from initial grasp
 		
-		Eigen::Isometry3d relativePose;                                                     // Relative pose from left hand to right hand when grasping
+//		Eigen::Isometry3d relativePose;                                                     // Relative pose from left hand to right hand when grasping
 		
 	private:
 		
