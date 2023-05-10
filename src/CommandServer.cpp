@@ -264,7 +264,7 @@ class CommandServer : public CommandInterface
 			// Convert yarp::sig::Matrix to Eigen::Isometry3d
 			for(int i = 0; i < 4; i++)
 			{
-				for(int j = 0; j < 4; j++) temp(i,j) = leftPose[i][j];
+				for(int j = 0; j < 4; j++) temp(i,j) = rightPose[i][j];
 			}
 			
 			Eigen::Isometry3d desiredRight(temp);
