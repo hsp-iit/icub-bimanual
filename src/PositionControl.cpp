@@ -100,14 +100,16 @@ void PositionControl::run()
 				{
 					dq(i) = desiredPosition(i) - this->qRef(i);                  // Difference between current reference point and desired
 					
-					     if(dq(i) <= lowerBound(i)) dq(i) = lowerBound(i) + 0.001; // Just above the lower bound
-					else if(dq(i) >= upperBound(i)) dq(i) = upperBound(i) - 0.001; // Just below the upper bound
+					     if(dq(i) <= lowerBound(i)) dq(i) = lowerBound(i) + 0.01; // Just above the lower bound
+					else if(dq(i) >= upperBound(i)) dq(i) = upperBound(i) - 0.01; // Just below the upper bound
 				}
 			}
 		}
 		else // this->controlSpace == Cartesian
 		{
 			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);               // Get the required Cartesian motion
+			
+			this->manipulability = sqrt((this->J*this->J.transpose()).determinant());   // Proximity to a singularity
 			
 			// Get the instantaneous limits on the joint motion
 			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
@@ -116,24 +118,24 @@ void PositionControl::run()
 				compute_joint_limits(lowerBound(i),upperBound(i),i);
 			}
 			
+			// Solve the control based on the robot model
 			if(this->_robotModel == "iCub2")
 			{
 				// NOTE: We need to solve a custom QP problem to account
 				// for the iCub2's shoulder constraints ಠ_ಠ
 				// I put it in a separate function because it's long and ugly
 				
-				Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->q);     // q OR qRef ???
-				
-				dq = icub2_cartesian_control(dx, redundantTask, lowerBound, upperBound);
+				dq = icub2_cartesian_control(dx, lowerBound, upperBound);
 			}
 			else // this->_robotModel = "ergoCub"
 			{
-				Eigen::VectorXd startPoint(this->numJoints);                        // Required by the QP solver
+				// Solve the start point for the QP Solver
+				Eigen::VectorXd startPoint(this->numJoints);
 				
 				if(QPSolver::last_solution_exists())
 				{
 					startPoint = QPSolver::last_solution().tail(this->numJoints); // Remove any Lagrange multipliers
-						
+					
 					for(int i = 0; i < this->numJoints; i++)
 					{
 						     if(startPoint(i) <= lowerBound(i)) startPoint(i) = lowerBound(i) + 0.01;
@@ -142,32 +144,16 @@ void PositionControl::run()
 				}
 				else startPoint = 0.5*(lowerBound + upperBound);
 				
-				double mu = sqrt((this->J*this->J.transpose()).determinant());      // Proximity to singularity
+				// Solve the redundant task
 				
-				Eigen::VectorXd redundantTask(this->numJoints);
-				
-				for(int i = this->numJoints-1; i >= 0; i--)
+				if(this->manipulability > this->threshold)                          // i.e. not singular
 				{
-					if(i > this->numJoints - 7)                                 // Right arm
-					{
-						redundantTask(i) = manipulability_gradient(mu,this->J.block(6,0,6,this->numJoints),i); // Right hand Jacobian	
-					}
-					else if(i > this->numJoints - 14)                           // Left arm
-					{
-						redundantTask(i) = manipulability_gradient(mu,this->J.block(0,0,6,this->numJoints),i); // Left hand Jacobian
-					}
-					else                                                        // Torso
-					{
-						redundantTask(i) = this->kp*(this->desiredPosition(i) - this->q(i));
-					}
-				}
-				
-				if(mu > this->threshold) // i.e. not singular
-				{
+					Eigen::VectorXd nullTask = redundant_task();                // Wrote a whole function for this
+					
 					try // to solve the QP problem
 					{
 					        // SO EASY compared to iCub2 ಥ‿ಥ
-						dq = QPSolver::redundant_least_squares(redundantTask, this->M, dx, this->J,
+						dq = QPSolver::redundant_least_squares(nullTask, this->M, dx, this->J,
 					                                               lowerBound, upperBound, startPoint); 
 					}
 					catch(const std::exception &exception)
@@ -178,8 +164,8 @@ void PositionControl::run()
 				else // Solve Damped Least Squares (DLS)
 				{
 					std::cout << "[WARNING] [POSITION CONTROL] Robot is (near) singular! "
-					          << "Manipulability is " << mu << " and threshold was set at "
-					          << this->threshold << ".\n";
+					          << "Manipulability is " << this->manipulability << " and "
+					          << "threshold was set at " << this->threshold << ".\n";
 					          
 					/* This isn't working very well
 					double damping = (1-pow(mu/this->threshold,2))*this->maxDamping;
@@ -210,10 +196,8 @@ void PositionControl::run()
 					
 				}
 				
-				if(this->isGrasping)
-				{
-					// Resolve the QP problem subject to grasp constraints
-					
+				if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
+				{	
 					Eigen::Matrix<double,6,1> dc = grasp_correction();
 					
 					//Eigen::VectorXd dc(6) = grasp_correction();
@@ -327,12 +311,6 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 {
-/* This method had problems 
-	// Difference between desired offset between the hands (left->right)
-	// and the actual offset
-	return -1*this->K*pose_error(this->relativePose, this->leftPose.inverse()*this->rightPose); // Has to be negative???
-*/
-
 	Eigen::Matrix3d R = this->leftPose.rotation();
 	
 	double actualWidth = (this->leftPose.translation() - this->rightPose.translation()).norm();
@@ -350,7 +328,6 @@ Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
  //                       Standard Cartesian method for iCub2                                     //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<double,12,1> &dx,
-                                                         const Eigen::VectorXd &redundantTask,
                                                          const Eigen::VectorXd &lowerBound,
                                                          const Eigen::VectorXd &upperBound)
 {
@@ -375,6 +352,9 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 	
 	if(mu > this->threshold)                                                                    // i.e. not singular
 	{	
+		Eigen::VectorXd nullTask = redundant_task();                                        // There's a whole function for this
+		
+		// Compute start point for the QP solver
 		Eigen::VectorXd startPoint(12+this->numJoints);                                     // +12 for Lagrange multipliers
 	
 		if(QPSolver::last_solution_exists())
@@ -384,7 +364,7 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 			if(lastSolution.size() == (12+this->numJoints)) startPoint = lastSolution;  // Lagrange multipliers & joint control
 			else
 			{
-				startPoint.head(12) = lagrange_multipliers(dx,redundantTask);       // We need to compute the guess for the Lagrange multipliers
+				startPoint.head(12) = lagrange_multipliers(dx,nullTask);            // We need to compute the guess for the Lagrange multipliers
 				startPoint.tail(this->numJoints) = lastSolution.tail(this->numJoints);
 			}
 			
@@ -397,7 +377,7 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		}
 		else
 		{
-			startPoint.head(12) = lagrange_multipliers(dx,redundantTask);
+			startPoint.head(12) = lagrange_multipliers(dx,nullTask);
 			startPoint.tail(this->numJoints) = 0.5*(lowerBound + upperBound);
 		}
 
@@ -415,7 +395,7 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		Eigen::VectorXd f(12+this->numJoints);
 		f.resize(12+this->numJoints);
 		f.head(12)              = -dx;
-		f.tail(this->numJoints) = -M*redundantTask;
+		f.tail(this->numJoints) = -M*nullTask;
 
 		// B = [ 0 -I ]
 		//     [ 0  I ]
@@ -476,15 +456,11 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		}*/
 	}
 	
-	if(this->isGrasping)
-	{
-		// Solve again subject to grasp constraints
-		
+	if(this->isGrasping) // Solve again subject to grasp constraints
+	{	
 		Eigen::MatrixXd Jc = this->C*this->J;                                               // Constraint matrix
 		
-		Eigen::Matrix<double,6,1> dc = grasp_correction();
-		
-//		Eigen::VectorXd dc(6); dc.setZero();                                            // Constraint motion
+		Eigen::Matrix<double,6,1> dc = grasp_correction();                                  // Not working so well on iCub2?
 		
 		// H = [ 0   Jc ]
 		//     [ Jc' I  ]
