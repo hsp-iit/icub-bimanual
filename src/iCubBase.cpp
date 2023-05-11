@@ -655,6 +655,69 @@ Eigen::Vector3d iCubBase::angle_axis(const Eigen::Matrix3d &R)
 		                       angle*(R(1,0)-R(0,1)));
 	}
 }
+
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                  Get the partial derivative of a Jacobian w.r.t a given joint                  //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::MatrixXd iCubBase::partial_derivative(const Eigen::MatrixXd &J, const unsigned int &jointNum)
+{
+	if(J.rows() != 6)
+	{
+		throw std::invalid_argument("[ERROR] [iCUB BASE] partial_derivative(): Expected the Jacobian argument to have 6 rows, but it had " + std::to_string(this->J.rows()) + ".");
+	}
+	else if(jointNum > this->numJoints - 1)
+	{
+		throw std::invalid_argument("[ERROR] [iCUB BASE] partial_derivative(): Cannot compute the partial derivative for joint " + std::to_string(jointNum) + " as this model only has " + std::to_string(this->numJoints) + " joints.");
+	}
+	
+	Eigen::MatrixXd dJ(6,this->numJoints); dJ.setZero();
+	
+	for(int i = 0; i < this->numJoints; i++)
+	{
+		if (jointNum < i)
+		{
+			// a_j x (a_i x a_i)
+			dJ(0,i) = J(4,jointNum)*J(2,i) - J(5,jointNum)*J(1,i);
+			dJ(1,i) = J(5,jointNum)*J(0,i) - J(3,jointNum)*J(2,i);
+			dJ(2,i) = J(3,jointNum)*J(1,i) - J(4,jointNum)*J(0,i);
+
+			// a_j x a_i
+			dJ(3,i) = J(4,jointNum)*J(5,i) - J(5,jointNum)*J(4,i);
+			dJ(4,i) = J(5,jointNum)*J(3,i) - J(3,jointNum)*J(5,i);
+			dJ(5,i) = J(3,jointNum)*J(4,i) - J(4,jointNum)*J(3,i);
+		}
+		else
+		{
+			// a_i x (a_j x a_j)
+			dJ(0,i) = J(4,i)*J(2,jointNum) - J(5,i)*J(1,jointNum);
+			dJ(1,i) = J(5,i)*J(0,jointNum) - J(3,i)*J(2,jointNum);
+			dJ(2,i) = J(3,i)*J(1,jointNum) - J(4,i)*J(0,jointNum);
+		}
+	}
+	
+	return dJ;
+}
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ //                   Compute the derivative of manipulability w.r.t a given joint                //           
+///////////////////////////////////////////////////////////////////////////////////////////////////
+double iCubBase::manipulability_gradient(const double &mu, const Eigen::MatrixXd &J, const unsigned int &jointNum)
+{
+	if(jointNum >= this->numJoints)
+	{
+		std::cerr << "[ERROR] [iCUB BASE] manipulability_gradient(): Joint range is 0 to "
+		          << this->numJoints-1 << " but your input was " << jointNum << ".\n";
+
+		return 0;
+	}
+	else
+	{
+		if(mu < this->threshold) return 0.0;	
+		else 			 return mu * ( (J*J.transpose()).partialPivLu().inverse()*
+		                                        partial_derivative(J,jointNum)*J.transpose() ).trace(); // I hope this is correct    
+	}
+}
 		
 
 /*

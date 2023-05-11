@@ -143,8 +143,8 @@ class iCubBase : public QPSolver,
 		
 		double graspWidth = 0.0;                                                            // Distance between hands from initial grasp
 		
-//		Eigen::Isometry3d relativePose;                                                     // Relative pose from left hand to right hand when grasping
-		
+		double manipulability_gradient(const double &mu, const Eigen::MatrixXd &J, const unsigned int &jointNum);
+	
 	private:
 		
 		// Kinematic & dynamic modelling
@@ -155,9 +155,9 @@ class iCubBase : public QPSolver,
 		
 		Eigen::Isometry3d iDynTree_to_Eigen(const iDynTree::Transform &T);                  // Convert iDynTree:Transform to Eigen::Isometry
 		
-		bool get_constraints(Eigen::MatrixXd &B, Eigen::VectorXf &z);                       // Get the control constraints based on robot model
-		
 		Eigen::Vector3d angle_axis(const Eigen::Matrix3d &R);
+		
+		Eigen::MatrixXd partial_derivative(const Eigen::MatrixXd &J, const unsigned int &jointNum);
 		
 		// NOTE: THESE FUNCTIONS MUST BE DECLARED IN ANY CHILD CLASS OF THIS ONE
 		virtual bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum) = 0;
