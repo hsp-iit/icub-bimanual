@@ -109,8 +109,6 @@ void PositionControl::run()
 		{
 			Eigen::VectorXd dx = track_cartesian_trajectory(elapsedTime);               // Get the required Cartesian motion
 			
-			Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->q);     // q OR qRef ???
-			
 			// Get the instantaneous limits on the joint motion
 			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
 			for(int i = 0; i < this->numJoints; i++)
@@ -123,6 +121,8 @@ void PositionControl::run()
 				// NOTE: We need to solve a custom QP problem to account
 				// for the iCub2's shoulder constraints ಠ_ಠ
 				// I put it in a separate function because it's long and ugly
+				
+				Eigen::VectorXd redundantTask = 0.01*(this->desiredPosition - this->q);     // q OR qRef ???
 				
 				dq = icub2_cartesian_control(dx, redundantTask, lowerBound, upperBound);
 			}
@@ -142,7 +142,25 @@ void PositionControl::run()
 				}
 				else startPoint = 0.5*(lowerBound + upperBound);
 				
-				double mu = sqrt((this->J*this->J.transpose()).determinant());      // Proximity to singularity				
+				double mu = sqrt((this->J*this->J.transpose()).determinant());      // Proximity to singularity
+				
+				Eigen::VectorXd redundantTask(this->numJoints);
+				
+				for(int i = this->numJoints-1; i >= 0; i--)
+				{
+					if(i > this->numJoints - 7)                                 // Right arm
+					{
+						redundantTask(i) = manipulability_gradient(mu,this->J.block(6,0,6,this->numJoints),i); // Right hand Jacobian	
+					}
+					else if(i > this->numJoints - 14)                           // Left arm
+					{
+						redundantTask(i) = manipulability_gradient(mu,this->J.block(0,0,6,this->numJoints),i); // Left hand Jacobian
+					}
+					else                                                        // Torso
+					{
+						redundantTask(i) = this->kp*(this->desiredPosition(i) - this->q(i));
+					}
+				}
 				
 				if(mu > this->threshold) // i.e. not singular
 				{
