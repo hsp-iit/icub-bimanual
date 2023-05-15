@@ -315,10 +315,10 @@ Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 	
 	double actualWidth = (this->leftPose.translation() - this->rightPose.translation()).norm();
 	
-	double scalar = this->kp*(this->graspWidth - actualWidth)/2;
+	double scalar = 0.1*(this->graspWidth - actualWidth)/2;
 	
 	Eigen::Matrix<double,6,1> temp;
-	temp.head(3) = scalar*(R.col(0) + R.col(1) + R.col(2));
+	temp.head(3) = scalar*R.col(1);
 	temp.tail(3).setZero();
 	
 	return temp;
