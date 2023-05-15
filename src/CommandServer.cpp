@@ -112,22 +112,6 @@ class CommandServer : public CommandInterface
 				}
 				
 				return this->robot->move_to_poses(newLeftPoints,newRightPoints,times);
-				
-				/*
-				// NOTE: HERE I AM ASSUMING ONLY 1 WAYPOINT, BUT I NEED TO PROGRAM
-				// FOR MULTIPLE, RELATIVE WAYPOINTS
-				// Also, I am only translating otherwise things get weird
-				
-				Eigen::Isometry3d desiredLeft  = this->robot->hand_pose("left");
-				desiredLeft.translation() += leftWaypoints[0].translation();
-				                               
-				
-				Eigen::Isometry3d desiredRight = this->robot->hand_pose("right");
-				desiredRight.translation() += rightWaypoints[0].translation();
-
-				
-				return this->robot->move_to_pose(desiredLeft,desiredRight,times[0]); // Send the commands onward
-				*/
 			}  
 		}
 
@@ -182,18 +166,6 @@ class CommandServer : public CommandInterface
 				}
 				
 				return this->robot->move_object(newObjectPoints,waypointTimes);
-				
-				/*
-				// NOTE: For now I am assuming only 1 waypoint, and I am
-				// only translating. Need to expand in the future for multiple,
-				// relative waypoints, rotations, etc.
-				
-				Eigen::Isometry3d desiredPose = this->robot->object_pose();
-				
-				desiredPose.translation() += objectWaypoints[0].translation();
-				
-				return this->robot->move_object(desiredPose,waypointTimes[0]);
-				*/
 			}
 		}
 
@@ -449,6 +421,17 @@ int main(int argc, char* argv[])
 		double maxDamping = parameter.findGroup("SINGULARITY_AVOIDANCE").find("maxDamping").asFloat64();
 		double threshold  = parameter.findGroup("SINGULARITY_AVOIDANCE").find("threshold").asFloat64();
 		if(not robot.set_singularity_avoidance_params(maxDamping,threshold)) return 1;
+		
+		// Set the redundant task parameters
+		double scalar = parameter.findGroup("REDUNDANT_TASK").find("scalar").asFloat64();
+		std::string task = parameter.findGroup("REDUNDANT_TASK").find("task").asString();
+		
+		if(not robot.set_redundant_task(task,scalar))
+		{
+			std::cerr << "[ERROR] [iCUB COMMAND SERVER] Unable to set the redundant task.\n";
+			
+			return 1;
+		}		
 		
 		// Set the desired position for the joints when running in Cartesian mode
 		bottle->clear(); bottle = parameter.find("desired_position").asList();

@@ -68,7 +68,7 @@ class PositionControl : public iCubBase
 	
 		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
 
-		Eigen::Matrix<double,6,1> grasp_correction();                                       
+		Eigen::Matrix<double,6,1> grasp_correction();                                       // Try to adjust the hand poses                                       
 		
 		/////////////////////// Inherited from PeriodicThread class ///////////////////////
 		bool threadInit();
@@ -82,14 +82,8 @@ class PositionControl : public iCubBase
 		Eigen::MatrixXd Bsmall;
 		
 		Eigen::VectorXd icub2_cartesian_control(const Eigen::Matrix<double,12,1> &dx,
-		                                        const Eigen::VectorXd &redundantTask,
 		                                        const Eigen::VectorXd &lowerBound,
 		                                        const Eigen::VectorXd &upperBound);
-		
-		Eigen::VectorXd icub2_dls(const Eigen::Matrix<double,12,1> &dx,
-		                          const double &manipulability,
-		                          const Eigen::VectorXd &lowerBound,
-		                          const Eigen::VectorXd &upperBound);
 		                          
 		Eigen::Matrix<double,12,1> lagrange_multipliers(const Eigen::Matrix<double,12,1> &dx,
                                                                 const Eigen::VectorXd &redundantTask);
