@@ -704,6 +704,33 @@ Eigen::MatrixXd iCubBase::partial_derivative(const Eigen::MatrixXd &J, const uns
 	return dJ;
 }
 
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                 Set the redundant task                                         //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::set_redundant_task(const std::string &task, const double &scalar)
+{
+	this->kr = scalar;
+	
+	if(task == "default" or task == "singularity_avoidance")
+	{
+		this->redundantTask = singularityAvoidance;
+		return true;
+	}
+	else if(task == "set_point")
+	{
+		this->redundantTask = setPoint;
+		return true;
+	}
+	else
+	{
+		std::cerr << "[ERROR] [iCUB BASE] set_redundant_task(): "
+		          << "You input " << task << " but current can only do "
+		          << "'singularity_avoidance' / 'default' and 'set_point'.\n";
+		return false;
+	}
+}		      
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                            Compute the designated redundant task                               //
 ////////////////////////////////////////////////////////////////////////////////////////////////////

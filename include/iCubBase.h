@@ -72,7 +72,8 @@ class iCubBase : public QPSolver,
 		         
 		bool set_singularity_avoidance_params(const double &_maxDamping,
 		                                      const double &_threshold);
-		         
+		                                      
+		bool set_redundant_task(const std::string &task, const double &scalar);		         
 		               
 		// Grasp control functions
 		bool grasp_object();                                                                // As it says on the label
@@ -128,7 +129,7 @@ class iCubBase : public QPSolver,
 		
 		Eigen::Matrix<double,6,6> D = 2*this->gainTemplate;                                 // Theoretically optimal: kd >= 2*sqrt(kp)
 		
-		double kr = 0.08;                                                                    // Gain for the redundant task
+		double kr = 0.1;                                                                    // Gain for the redundant task
 		
 		CartesianTrajectory leftTrajectory, rightTrajectory;                                // Trajectory generators for the hands
 		
@@ -143,7 +144,7 @@ class iCubBase : public QPSolver,
 		
 		Eigen::Matrix<double,6,12> G;                                                       // Grasp matrix
 		
-		Eigen::Matrix<double,6,12> C;                                                      // Constraint matrix
+		Eigen::Matrix<double,6,12> C;                                                       // Constraint matrix
 		
 		Payload payload;                                                                    // Class for representing object being held
 		
