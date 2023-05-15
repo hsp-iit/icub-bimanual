@@ -143,7 +143,7 @@ class iCubBase : public QPSolver,
 		
 		Eigen::Matrix<double,6,12> G;                                                       // Grasp matrix
 		
-		Eigen::Matrix<double,6,12> C;                                                       // Constraint matrix
+		Eigen::Matrix<double,6,12> C;                                                      // Constraint matrix
 		
 		Payload payload;                                                                    // Class for representing object being held
 		
