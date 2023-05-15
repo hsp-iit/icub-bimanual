@@ -308,6 +308,16 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 					waypoint[j] = target;                                       // Assign the target for the jth waypoint
 					
 					t[j] = times[j-1];                                          // Add on subsequent time data
+					
+					if(t[j] <= t[j-1])
+					{
+						std::cerr << "[ERROR] [iCUB BASE] move_to_positions: "
+						          << "Times must be in ascending order. Waypoint "
+						          << j-1 << " had a time of " << t[j-1] << " and "
+						          << "waypoint " << j << " had a time of " << t[j] << ".\n";
+						
+						return false;
+					}
 				}
 			}
 			
@@ -317,7 +327,7 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 				          << "There was a problem setting new joint trajectory data." << std::endl;
 			
 				return false;
-			}
+			}	
 			else this->jointTrajectory[i].setInitialConditions(this->qdot[i],0.0);      // Use the current joint velocity
 		}
 		
@@ -335,9 +345,6 @@ bool iCubBase::move_to_pose(const Eigen::Isometry3d &desiredLeft,
                             const Eigen::Isometry3d &desiredRight,
                             const double &time)
 {
-//	if( (pose_error(desiredLeft,this->leftPose)).norm() < 0.01
-//	and (pose_error(desiredRight,this->rightPose)).norm() < 0.01) return true;                  // Already there	
-	
 	// Put them in to std::vector objects and pass onward
 	std::vector<Eigen::Isometry3d> leftPoses(1,desiredLeft);
 	std::vector<Eigen::Isometry3d> rightPoses(1,desiredRight);
@@ -410,8 +417,6 @@ bool iCubBase::grasp_object()
 	else
 	{		
 		this->isGrasping = true;                                                            // Set grasp constraint
-	
-//		this->relativePose = this->leftPose.inverse()*this->rightPose;                      // This should give the right hand pose w.r.t left
 		
 		this->graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
 		

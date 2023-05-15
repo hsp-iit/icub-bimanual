@@ -47,6 +47,16 @@ CartesianTrajectory::CartesianTrajectory(const std::vector<Eigen::Isometry3d> &p
 			points[3][i] = angle*(R(2,1)-R(1,2));                                       // x component
 			points[4][i] = angle*(R(0,2)-R(2,0));                                       // y component
 			points[5][i] = angle*(R(1,0)-R(0,1));                                       // z component
+			
+			if(i > 0 and times[i] <= times[i-1])
+			{
+				errorMessage += "Times must be in ascending order. Waypoint "
+				              + std::to_string(i-1) + " had a time of " + std::to_string(times[i-1])
+				              + " and waypoint " + std::to_string(i) + " had a time of "
+				              + std::to_string(times[i]) + ".";
+				
+				throw std::invalid_argument(errorMessage);
+			}
 		}
 		 
 		// Now insert them in to the iDynTree::CubicSpline object
