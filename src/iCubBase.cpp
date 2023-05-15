@@ -344,11 +344,7 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 bool iCubBase::move_to_pose(const Eigen::Isometry3d &desiredLeft,
                             const Eigen::Isometry3d &desiredRight,
                             const double &time)
-<<<<<<< HEAD
 {
-=======
-{	
->>>>>>> refs/remotes/origin/devel
 	// Put them in to std::vector objects and pass onward
 	std::vector<Eigen::Isometry3d> leftPoses(1,desiredLeft);
 	std::vector<Eigen::Isometry3d> rightPoses(1,desiredRight);
