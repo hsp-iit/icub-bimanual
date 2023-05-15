@@ -29,6 +29,7 @@ tmux send-keys -t $SESSION "~/workspace/icub-bimanual/build/bin/command_prompt $
 
 # Switch back to Pane 0 and run yarp rpc
 tmux select-pane -t 0
+tmux send-keys -t $SESSION "sleep 3" Enter                                               # Wait a few seconds before continuing
 tmux send-keys -t $SESSION "yarp rpc /commandPrompt" Enter
 
 tmux attach-session -t $SESSION:0                                                        # REQUIRED or the above won't execute

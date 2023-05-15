@@ -4,15 +4,15 @@ SESSION="server"                                                                
 SERVERNAME="/commandServer"                                                              # Name of the yarp server for controlling the robot
 
 # Options
-CONFIG="~/workspace/icub-bimanual/config/ergocub.ini"
-PORT="/ergocubSim"
-URDF="~/workspace/robotology-superbuild/src/ergocub-software/urdf/ergoCub/robots/ergoCubGazeboV1/model.urdf"
-WORLD="~/workspace/icub-bimanual/gazebo/worlds/ergocub_grasp_demo.sdf"
+#CONFIG="~/workspace/icub-bimanual/config/ergocub.ini"
+#PORT="/ergocubSim"
+#URDF="~/workspace/robotology-superbuild/src/ergocub-software/urdf/ergoCub/robots/ergoCubGazeboV1/model.urdf"
+#WORLD="~/workspace/icub-bimanual/gazebo/worlds/ergocub_grasp_demo.sdf"
 
-#CONFIG="~/workspace/icub-bimanual/config/icub2.ini"                                                             
-#PORT="/icubSim"                                                                          # Port name
-#URDF="~/workspace/robotology-superbuild/src/icub-models/iCub/robots/iCubGazeboV2_7/model.urdf"
-#WORLD="~/workspace/icub-bimanual/gazebo/worlds/icub2_grasp_demo.sdf"                     # Location of the Gazebo world
+CONFIG="~/workspace/icub-bimanual/config/icub2.ini"                                                             
+PORT="/icubSim"                                                                          # Port name
+URDF="~/workspace/robotology-superbuild/src/icub-models/iCub/robots/iCubGazeboV2_7/model.urdf"
+WORLD="~/workspace/icub-bimanual/gazebo/worlds/icub2_grasp_demo.sdf"                     # Location of the Gazebo world
 
 
 # Create first window & panel
@@ -32,15 +32,15 @@ tmux rename-window -t  0 'Server'                                               
 
 # Split Pane 1 to the right, run YARP
 tmux split-window -h
-tmux send-keys -t $SESSION "yarpserver --write" Enter
+tmux send-keys    -t $SESSION "yarpserver --write" Enter
 
 # Split Pane 2, launch Gazebo
 tmux split-window -v
-tmux send-keys -t $SESSION "gazebo $WORLD" Enter
+tmux send-keys    -t $SESSION "gazebo $WORLD" Enter
 
 # Select Pane 0, launch the yarp server
 tmux select-pane -t 0
-tmux send-keys -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $SERVERNAME $PORT $URDF $CONFIG" Enter
+tmux send-keys   -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $SERVERNAME $PORT $URDF $CONFIG" Enter
 
 tmux attach-session -t $SESSION:0                                                        # REQUIRED or the above won't execute
 

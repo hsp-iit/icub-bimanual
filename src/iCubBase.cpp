@@ -134,14 +134,15 @@ bool iCubBase::update_state()
 		                                tempVelocity,                                       // Joint velocities
 		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity
 		{
-			// Get the Jacobian for the hands
 			Eigen::MatrixXd temp(6,6+this->numJoints);                                  // Temporary storage
 			
 			this->computer.getFrameFreeFloatingJacobian("left",temp);                   // Compute left hand Jacobian
-			this->J.block(0,0,6,this->numJoints) = temp.block(0,6,6,this->numJoints);   // Assign to larger matrix
+			this->Jleft = temp.block(0,6,6,this->numJoints);                            // Remove floating base component
+			this->J.block(0,0,6,this->numJoints) = this->Jleft;                         // Assign to combined matrix
 			
 			this->computer.getFrameFreeFloatingJacobian("right",temp);                  // Compute right hand Jacobian
-			this->J.block(6,0,6,this->numJoints) = temp.block(0,6,6,this->numJoints);   // Assign to larger matrix
+			this->Jright = temp.block(0,6,6,this->numJoints);                           // Remove floating base component
+			this->J.block(6,0,6,this->numJoints) = this->Jright;                        // Assign to larger matrix
 			
 			// Compute inertia matrix
 			temp.resize(6+this->numJoints,6+this->numJoints);
@@ -157,8 +158,7 @@ bool iCubBase::update_state()
 			if(this->isGrasping)
 			{
 				// Assume the payload is rigidly attached to the left hand
-				this->payload.update_state(this->leftPose,
-				                           iDynTree::toEigen(this->computer.getFrameVel("left"))); 
+				this->payload.update_state(this->leftPose, iDynTree::toEigen(this->computer.getFrameVel("left"))); 
 
 				// G = [    I    0     I    0 ]
 				//     [ S(left) I S(right) I ]
@@ -239,7 +239,7 @@ bool iCubBase::move_to_position(const Eigen::VectorXd &position,
 {
 	if((this->q - position).norm() < 0.5 and this->qdot.norm() < 0.5)
 	{
-		return true;            // Already there
+		return true;                                                                        // Already there
 	}
 	else if(position.size() != this->numJoints)
 	{
@@ -344,7 +344,11 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 bool iCubBase::move_to_pose(const Eigen::Isometry3d &desiredLeft,
                             const Eigen::Isometry3d &desiredRight,
                             const double &time)
+<<<<<<< HEAD
 {
+=======
+{	
+>>>>>>> refs/remotes/origin/devel
 	// Put them in to std::vector objects and pass onward
 	std::vector<Eigen::Isometry3d> leftPoses(1,desiredLeft);
 	std::vector<Eigen::Isometry3d> rightPoses(1,desiredRight);
@@ -704,436 +708,48 @@ Eigen::MatrixXd iCubBase::partial_derivative(const Eigen::MatrixXd &J, const uns
 	return dJ;
 }
 
-  ///////////////////////////////////////////////////////////////////////////////////////////////////
- //                   Compute the derivative of manipulability w.r.t a given joint                //           
-///////////////////////////////////////////////////////////////////////////////////////////////////
-double iCubBase::manipulability_gradient(const double &mu, const Eigen::MatrixXd &J, const unsigned int &jointNum)
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                            Compute the designated redundant task                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Eigen::VectorXd iCubBase::redundant_task()
 {
-	if(jointNum >= this->numJoints)
-	{
-		std::cerr << "[ERROR] [iCUB BASE] manipulability_gradient(): Joint range is 0 to "
-		          << this->numJoints-1 << " but your input was " << jointNum << ".\n";
-
-		return 0;
-	}
-	else
-	{
-		if(mu < this->threshold) return 0.0;	
-		else 			 return mu * ( (J*J.transpose()).partialPivLu().inverse()*
-		                                        partial_derivative(J,jointNum)*J.transpose() ).trace(); // I hope this is correct    
-	}
-}
-		
-
-/*
-iCubBase::iCubBase(const std::string              &pathToURDF,
-                   const std::vector<std::string> &jointNames,
-                   const std::vector<std::string> &portNames,
-                   const Eigen::Isometry3d        &torsoPose,
-                   const std::string              &robotName)
-                   :
-                   yarp::os::PeriodicThread(0.01),                                                  // Create thread to run at 100Hz
-                   JointInterface(jointNames, portNames),                                           // Communicates with joint motors
-                   _torsoPose(Eigen_to_iDynTree(torsoPose)),
-                   _robotModel(robotName)
-{
-	iDynTree::ModelLoader loader;
+	Eigen::VectorXd task(this->numJoints); task.setZero();                                      // Value to be returned
 	
-	std::string message = "[ERROR] [ICUB BASE] Constructor: ";
-	
-	if(not loader.loadReducedModelFromFile(pathToURDF, jointNames, "urdf"))
+	switch(this->redundantTask)
 	{
-		message += "Could not load model from the path " + pathToURDF + ".";
-		throw std::runtime_error(message);
-	}
-	else
-	{
-		iDynTree::Model temp = loader.model();
-		
-		// Add custom hand frames based on the model of the robot
-		if(this->_robotModel == "icub2")
+		case setPoint:
 		{
-			temp.addAdditionalFrameToLink("l_hand", "left",
-			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,0.0),
-			                                                  iDynTree::Position(0.05765, -0.00556, 0.01369)));
-		
-			temp.addAdditionalFrameToLink("r_hand", "right",
-						      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,M_PI),
-						                          iDynTree::Position(-0.05765, -0.00556, 0.01369)));
+			for(int i = 0; i < this->numJoints; i++)
+			{
+				task(i) = this->kr*(this->desiredPosition(i) - this->q(i));         // Try to maintain desired pose
+			}
+			break;
 		}
-		else if(this->_robotModel == "icub3")
-		{
-			throw std::runtime_error(message + "Hand transforms for iCub3 have not been programmed yet!");
-		}
-		else if(this->_robotModel == "ergocub")
-		{
-			temp.addAdditionalFrameToLink("l_hand_palm", "left",
-			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-			                                                  iDynTree::Position(-0.00346, 0.00266, -0.0592)));
-                	temp.addAdditionalFrameToLink("r_hand_palm", "right",
-                				      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-                				                          iDynTree::Position(-0.00387, -0.00280, -0.0597)));
-		}
-		else
+		default: // manipulability
 		{	
-			message += "Expected 'icub2', 'icub3' or 'ergocub' for the robot _robotModel, "
-			                "but your input was '" + robotName + "'.";
-			                            
-			throw std::invalid_argument(message);
-		}
-		
-		// Now load the model in to the KinDynComputations class	    
-		if(not this->computer.loadRobotModel(temp))
-		{
-			message += "Could not generate iDynTree::KinDynComputations object from the model "
-			              + loader.model().toString() + ".";
-
-			throw std::runtime_error(message);
-		}
-		else
-		{
-/*
-			// Resize vectors based on model information
-			this->jointTrajectory.resize(this->numJoints);                              // Trajectory for joint motion control
-			this->q.resize(this->numJoints);                                            // Vector of measured joint positions
-			this->qdot.resize(this->numJoints);                                         // Vector of measured joint velocities
+			// Values used in this scope
+			Eigen::Matrix<double,6,6> JJt_left = (this->Jleft*this->Jleft.transpose()).partialPivLu().inverse();
+			Eigen::Matrix<double,6,6> JJt_right = (this->Jright*this->Jright.transpose()).partialPivLu().inverse();
 			
-			this->J.resize(12,this->numJoints);                                         // Resize the Jacobian
-			this->M.resize(this->numJoints,this->numJoints);                            // Resize the inertia matrix
-			this->Minv.resize(this->numJoints,this->numJoints);                         // Resize inverse inertia matrix			
+			// We have to do this weird backwards iteration since the
+			// torso on the ergoCub is broken
 			
-			if(not update_state()) throw std::runtime_error(message + "Unable to read initial joint state from the encoders.");
-
-			// Set the Cartesian control gains	
-			this->gainTemplate << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
-					      0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
-					      0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
-					      0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
-					      0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
-					      0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
-					      
-			this->K = 10*this->gainTemplate;                                            // Set the spring forces
-			this->D =  5*this->gainTemplate;                                            // Set the damping forces
-			
-			// G = [    I    0     I    0 ]
-			//     [ S(left) I S(right) I ]
-			this->G.block(0,0,3,3).setIdentity();
-			this->G.block(0,3,3,3).setZero();
-			this->G.block(0,6,3,3).setIdentity();
-			this->G.block(0,9,3,3).setZero();
-			this->G.block(3,3,3,3).setIdentity();
-			this->G.block(3,9,3,3).setIdentity();
-			
-			// C = [  I  -S(left) -I  S(right) ]
-			//     [  0      I     0     -I    ]
-			C.block(0,0,3,3).setIdentity();
-			C.block(0,6,3,3) = -C.block(0,0,3,3);
-			C.block(3,0,3,3).setZero();
-			C.block(3,3,3,3).setIdentity();
-			C.block(3,6,3,3).setZero();
-			C.block(3,9,3,3) = -C.block(0,0,3,3);
-
-			std::cout << "[INFO] [ICUB BASE] Successfully created iDynTree model from "
-			          << pathToURDF << ".\n";
-		}
-	}
-/*
-	// Set the Cartesian control gains	
-	this->gainTemplate << 1.0,   0.0,   0.0,   0.0,   0.0,   0.0,
-		              0.0,   1.0,   0.0,   0.0,   0.0,   0.0,
-		              0.0,   0.0,   1.0,   0.0,   0.0,   0.0,
-		              0.0,   0.0,   0.0,   0.1,   0.0,   0.0,
-		              0.0,   0.0,   0.0,   0.0,   0.1,   0.0,
-		              0.0,   0.0,   0.0,   0.0,   0.0,   0.1;
-	
-	this->K = 10*this->gainTemplate;                                                            // Set the spring forces
-	this->D =  5*this->gainTemplate;                                                            // Set the damping forces
-	
-	this->J.resize(12,this->numJoints);
-	this->M.resize(this->numJoints,this->numJoints);
-	this->Minv.resize(this->numJoints,this->numJoints);
-
-	// G = [    I    0     I    0 ]
-	//     [ S(left) I S(right) I ]
-	this->G.block(0,0,3,3).setIdentity();
-	this->G.block(0,3,3,3).setZero();
-	this->G.block(0,6,3,3).setIdentity();
-	this->G.block(0,9,3,3).setZero();
-	this->G.block(3,3,3,3).setIdentity();
-	this->G.block(3,9,3,3).setIdentity();
-	
-	// C = [  I  -S(left) -I  S(right) ]
-	//     [  0      I     0     -I    ]
-	C.block(0,0,3,3).setIdentity();
-	C.block(0,6,3,3) = -C.block(0,0,3,3);
-	C.block(3,0,3,3).setZero();
-	C.block(3,3,3,3).setIdentity();
-	C.block(3,6,3,3).setZero();
-	C.block(3,9,3,3) = -C.block(0,0,3,3);
-	
-	
-	iDynTree::ModelLoader loader;                                                               // Load a model of the robot
-	
-	if(not loader.loadReducedModelFromFile(pathToURDF, jointNames, "urdf"))
-	{
-		std::string message = "[ERROR] [ICUB BASE] Constructor: "
-		                      "Could not load a model from the path " + pathToURDF + ".";
-		                      
-		throw std::runtime_error(message);
-	}
-	else
-	{
-		iDynTree::Model temp = loader.model();                                              // Get the model
-		
-		// Add custom hand frames based on the model of the robot
-		if(this->_robotModel == "icub2")
-		{
-			temp.addAdditionalFrameToLink("l_hand", "left",
-			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,0.0),
-			                                                  iDynTree::Position(0.05765, -0.00556, 0.01369)));
-		
-			temp.addAdditionalFrameToLink("r_hand", "right",
-						      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,0.0,M_PI),
-						                          iDynTree::Position(-0.05765, -0.00556, 0.01369)));
-		}
-		else if(this->_robotModel == "icub3")
-		{
-			std::cerr << "This hasn't been programmed yet!" << std::endl;
-		}
-		else if(this->_robotModel == "ergocub")
-		{
-			temp.addAdditionalFrameToLink("l_hand_palm", "left",
-			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-			                                                  iDynTree::Position(-0.00346, 0.00266, -0.0592)));
-                	temp.addAdditionalFrameToLink("r_hand_palm", "right",
-                				      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-                				                          iDynTree::Position(-0.00387, -0.00280, -0.0597)));
-		}
-		else
-		{	std::string message = "[ERROR] [ICUB BASE] Constructor: "
-                                              "Expected icub2, icub3 or ergocub for the robot _robotModel, "
-                                              "but your input was " + robotName + ".";
-                                              
-			throw std::invalid_argument(message);
-		}
-		
-		// Now load the model in to the KinDynComputations class	    
-		if(not this->computer.loadRobotModel(temp))
-		{
-			std::string message = "[ERROR] [ICUB BASE] Constructor: "
-			                      "Could not generate iDynTree::KinDynComputations class from the model "
-			                    + loader.model().toString() + ".";
-
-			throw std::runtime_error(message);
-		}
-		else
-		{
-			// Resize vectors based on model information
-			this->jointTrajectory.resize(this->numJoints);                              // Trajectory for joint motion control
-			this->q.resize(this->numJoints);                                            // Vector of measured joint positions
-			this->qdot.resize(this->numJoints);                                         // Vector of measured joint velocities
-			
-			
-			if(update_state())
+			for(int i = this->numJoints-1; i >= 0; i--)
 			{
-				std::cout << "[INFO] [ICUB BASE] Successfully created iDynTree model "
-				          << "from " << pathToURDF + ".\n";
-			}
-			else
-			{
-				std::string message = "[ERROR] [ICUB BASE] Constructor: "
-				                      "Successfully created model from " + pathToURDF + " "
-				                      "but was unable to read joint encoders.";
-				                      
-				throw std::runtime_error(message);
+				if(i >= this->numJoints - 7)                                         // Right arm
+				{
+					task(i) = this->kr * this->manipulability
+					        * (JJt_right * partial_derivative(this->Jright,i) * this->Jright.transpose()).trace();
+				}
+				else if(i >= this->numJoints - 14)                                   // Left arm
+				{
+					task(i) = this->kr * this->manipulability
+					        * (JJt_left * partial_derivative(this->Jleft,i) * this->Jleft.transpose()).trace();
+				}
+				else    task(i) = -this->kr*this->q(i);                             // Torso
 			}
 		}
 	}
-*/
-
-/*
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                               Print the pose of a hand to the console                          //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::print_hand_pose(const std::string &which)
-{
-	if(which == "left" or which == "right")
-	{
-		std::cout << "Here is the " << which << " hand pose:" << std::endl;
-		std::cout << this->computer.getWorldTransform(which).asHomogeneousTransform().toString() << std::endl;
-
-		return true;
-	}
-	else
-	{
-		std::cout << "[ERROR] [ICUB BASE] print_hand_pose(): " 
-		          << "Expected 'left' or 'right' as the argument, "
-		          << "but the input was " << which << "." << std::endl;
-		
-		return false;
-	}
+	
+	return task;
 }
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                           Set the gains for control in Cartesian space                         //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::set_cartesian_gains(const double &stiffness, const double &damping)
-{
-	if(stiffness <= 0 or damping <= 0)
-	{
-		std::cerr << "[ERROR] [ICUB BASE] set_cartesian_gains(): "
-		          << "Gains cannot be negative! "
-		          << "You input " << stiffness << " for the stiffness gain, "
-		          << "and " << damping << " for the damping gain." << std::endl;
-		
-		return false;
-	}
-	else
-	{	
-		this->K = stiffness*this->gainTemplate;
-		this->D =   damping*this->gainTemplate;
-		
-		return true;
-	}
-}
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                            Set the gains for control in the joint space                        //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::set_joint_gains(const double &proportional, const double &derivative)
-{
-	if(proportional <= 0 or derivative <= 0)
-	{
-		std::cerr << "[ERROR] [ICUB BASE] set_joint_gains(): "
-                          << "Gains cannot be negative! "
-                          << "You input " << proportional << " for the proportional gain, "
-                          << "and " << derivative << " for the derivative gain." << std::endl;
-                
-                return false;
-        }
-        else
-        {
-        	this->kp = proportional;
-        	this->kd = derivative;
-        	return true;
-        }
-}
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                          Translate both hands by the given amount                              //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::translate(const Eigen::Vector3d &left,
-                         const Eigen::Vector3d &right,
-                         const double &time)
-{
-	if(this->isGrasping)
-	{
-		return move_object( this->payload.pose() * Eigen::Translation3d(left) , time );
-	}
-	else
-	{
-		Eigen::Isometry3d leftTarget  = this->leftPose  * Eigen::Translation3d(left);
-		Eigen::Isometry3d rightTarget = this->rightPose * Eigen::Translation3d(right);
-		
-		return move_to_pose(leftTarget, rightTarget, time);
-	}
-}
-
-
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                         Update the kinematics & dynamics of the robot                          //
-////////////////////////////////////////////////////////////////////////////////////////////////////
-bool iCubBase::update_state()
-{
-	if(JointInterface::read_encoders())
-	{	
-		// Get the values from the JointInterface class so we can use them here
-		this->q = joint_positions();
-		this->qdot = joint_velocities();
-		
-		iDynTree::VectorDynSize tempPosition(*this->q.data());
-		iDynTree::VectorDynSize tempVelocity(*this->qdot.data());
-
-		// Put them in to the iDynTree class to solve the kinematics and dynamics
-		if(this->computer.setRobotState(this->_torsoPose,                                   // As it says on the label
-		                                tempPosition,                                       // Joint positions
-		                                iDynTree::Twist(iDynTree::GeomVector3(0,0,0), iDynTree::GeomVector3(0,0,0)), // Torso twist
-		                                tempVelocity,                                       // Joint velocities
-		                                iDynTree::Vector3(std::vector<double> {0.0, 0.0, -9.81}))) // Direction of gravity
-		{
-		
-			// Get the Jacobian for the hands
-			Eigen::MatrixXd temp(6,6+this->numJoints);                                  // Temporary storage
-			
-			this->computer.getFrameFreeFloatingJacobian("left",temp);                   // Compute left hand Jacobian
-			this->J.block(0,0,6,this->numJoints) = temp.block(0,6,6,this->numJoints);   // Assign to larger matrix
-			
-			this->computer.getFrameFreeFloatingJacobian("right",temp);                  // Compute right hand Jacobian
-			this->J.block(6,0,6,this->numJoints) = temp.block(0,6,6,this->numJoints);   // Assign to larger matrix
-			
-			// Compute inertia matrix
-			temp.resize(6+this->numJoints,6+this->numJoints);
-			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute full inertia matrix
-			this->M = temp.block(6,6,this->numJoints,this->numJoints);                  // Remove floating base
-			this->Minv = this->M.partialPivLu().inverse();
-			
-			// Update hand poses
-			this->leftPose  = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));
-			this->rightPose = iDynTree_to_Eigen(this->computer.getWorldTransform("right"));
-			
-			// Update the grasp and constraint matrices
-			if(this->isGrasping)
-			{
-				// Assume the payload is rigidly attached to the left hand
-				this->payload.update_state(this->leftPose,
-				                           iDynTree::toEigen(this->computer.getFrameVel("left"))); 
-
-				// G = [    I    0     I    0 ]
-				//     [ S(left) I S(right) I ]
-				
-				// C = [  I  -S(left)  -I  S(right) ]
-				//     [  0      I      0    -I     ]
-				
-				Eigen::Matrix<double,3,3> S;                                        // Skew symmetric matrix
-				
-				// Left hand component
-				Eigen::Vector3d r = this->leftPose.translation() - this->payload.pose().translation();
-				
-				S <<    0 , -r(2),  r(1),
-				      r(2),    0 , -r(0),
-				     -r(1),  r(0),    0 ;
-				
-				this->G.block(3,0,3,3) =  S;
-				this->C.block(0,3,3,3) =  S;
-				
-				// Right hand component
-				r = this->rightPose.translation() - this->payload.pose().translation();
-				
-				S <<    0 , -r(2),  r(1),
-				      r(2),    0 , -r(0),
-				     -r(1),  r(0),    0;
-				     
-				this->G.block(3,6,3,3) = S;
-				this->C.block(0,9,3,3) =-S;
-			}
-			
-			return true;
-		}
-		else
-		{
-			std::cerr << "[ERROR] [ICUB BASE] update_state(): "
-				  << "Could not set state for the iDynTree::iKinDynComputations object." << std::endl;
-				  
-			return false;
-		}
-	}
-	else
-	{
-		std::cerr << "[ERROR] [ICUB BASE] update_state(): "
-			  << "Could not update state from the JointInterface class." << std::endl;
-			  
-		return false;
-	}
-}
-*/
