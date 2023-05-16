@@ -143,9 +143,8 @@ void PositionControl::run()
 					}
 				}
 				else startPoint = 0.5*(lowerBound + upperBound);
-				
-				// Solve the redundant task
-				
+	
+				// Solve the Cartesian control problem				
 				if(this->manipulability > this->threshold)                          // i.e. not singular
 				{
 					Eigen::VectorXd nullTask = redundant_task();                // Wrote a whole function for this
@@ -154,7 +153,9 @@ void PositionControl::run()
 					{
 					        // SO EASY compared to iCub2 ಥ‿ಥ
 						dq = QPSolver::redundant_least_squares(nullTask, this->M, dx, this->J,
-					                                               lowerBound, upperBound, startPoint); 
+					                                               lowerBound, upperBound, startPoint);
+					                                               
+					        std::cout << dq << std::endl;
 					}
 					catch(const std::exception &exception)
 					{
@@ -199,13 +200,10 @@ void PositionControl::run()
 				if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
 				{	
 					Eigen::Matrix<double,6,1> dc = grasp_correction();
-					
-					//Eigen::VectorXd dc(6) = grasp_correction();
-					
+				 	Eigen::MatrixXd Jc = this->C*this->J;
+				 	
 					try // Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
 					{
-						Eigen::MatrixXd Jc = this->C*this->J;
-				
 						dq = QPSolver::redundant_least_squares(dq, this->M, dc, Jc, lowerBound, upperBound, dq);
 					}
 					catch(const std::exception &exception)
@@ -247,6 +245,12 @@ bool PositionControl::compute_joint_limits(double &lower, double &upper, const u
 	}
 	else
 	{
+		//lower = std::max(this->positionLimit[jointNum][0] - this->qRef[jointNum],
+		//                -this->velocityLimit[jointNum]*this->dt);
+		                
+		//upper = std::min(this->positionLimit[jointNum][1] - this->qRef[jointNum],
+		//                 this->velocityLimit[jointNum]*this->dt);
+	
 		lower = this->positionLimit[jointNum][0] - this->qRef[jointNum];
 		upper = this->positionLimit[jointNum][1] - this->qRef[jointNum];
 		
