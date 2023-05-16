@@ -150,11 +150,11 @@ void PositionControl::run()
 				{
 					if(i > this->numJoints - 7)                                 // Right arm
 					{
-						redundantTask(i) = manipulability_gradient(mu,this->J.block(6,0,6,this->numJoints),i); // Right hand Jacobian	
+						redundantTask(i) = 0.1*manipulability_gradient(mu,this->J.block(6,0,6,this->numJoints),i); // Right hand Jacobian	
 					}
 					else if(i > this->numJoints - 14)                           // Left arm
 					{
-						redundantTask(i) = manipulability_gradient(mu,this->J.block(0,0,6,this->numJoints),i); // Left hand Jacobian
+						redundantTask(i) = 0.1* manipulability_gradient(mu,this->J.block(0,0,6,this->numJoints),i); // Left hand Jacobian
 					}
 					else                                                        // Torso
 					{
