@@ -143,9 +143,8 @@ void PositionControl::run()
 					}
 				}
 				else startPoint = 0.5*(lowerBound + upperBound);
-				
-				// Solve the redundant task
-				
+	
+				// Solve the Cartesian control problem				
 				if(this->manipulability > this->threshold)                          // i.e. not singular
 				{
 					Eigen::VectorXd nullTask = redundant_task();                // Wrote a whole function for this
@@ -154,7 +153,7 @@ void PositionControl::run()
 					{
 					        // SO EASY compared to iCub2 ಥ‿ಥ
 						dq = QPSolver::redundant_least_squares(nullTask, this->M, dx, this->J,
-					                                               lowerBound, upperBound, startPoint); 
+					                                               lowerBound, upperBound, startPoint);
 					}
 					catch(const std::exception &exception)
 					{
@@ -166,11 +165,12 @@ void PositionControl::run()
 					std::cout << "[WARNING] [POSITION CONTROL] Robot is (near) singular! "
 					          << "Manipulability is " << this->manipulability << " and "
 					          << "threshold was set at " << this->threshold << ".\n";
-					          
-					/* This isn't working very well
-					double damping = (1-pow(mu/this->threshold,2))*this->maxDamping;
+					       
 					
-					std::cout << "Damping: " << damping << std::endl;
+					// NOTE This doesn't work very well when the motors are
+					// running in PositionDirect mode.
+					
+					/*double damping = (1 - pow(this->manipulability/this->threshold,2)) * this->maxDamping;
 					
 					// v = [  0 ]
 					//     [ dx ]
@@ -193,19 +193,18 @@ void PositionControl::run()
 					{
 						std::cout << exception.what() << std::endl;
 					}*/
-					
 				}
 				
 				if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
 				{	
+					// THE PROBLEM IS HERE
+					
 					Eigen::Matrix<double,6,1> dc = grasp_correction();
 					
-					//Eigen::VectorXd dc(6) = grasp_correction();
-					
+				 	Eigen::MatrixXd Jc = this->C*this->J;
+				 	
 					try // Too easy lol ᕙ(▀̿̿ĺ̯̿̿▀̿ ̿) ᕗ
 					{
-						Eigen::MatrixXd Jc = this->C*this->J;
-				
 						dq = QPSolver::redundant_least_squares(dq, this->M, dc, Jc, lowerBound, upperBound, dq);
 					}
 					catch(const std::exception &exception)
@@ -247,8 +246,14 @@ bool PositionControl::compute_joint_limits(double &lower, double &upper, const u
 	}
 	else
 	{
-		lower = this->positionLimit[jointNum][0] - this->qRef[jointNum];
-		upper = this->positionLimit[jointNum][1] - this->qRef[jointNum];
+		// lower = std::max(this->positionLimit[jointNum][0] - this->qRef[jointNum],
+		//                -this->velocityLimit[jointNum]*this->dt);
+		                
+		// upper = std::min(this->positionLimit[jointNum][1] - this->qRef[jointNum],
+		 //                this->velocityLimit[jointNum]*this->dt);   
+		                 
+		 lower = this->positionLimit[jointNum][0] - this->qRef[jointNum];
+		 upper = this->positionLimit[jointNum][1] - this->qRef[jointNum];
 		
 		if(lower >= upper)
 		{
@@ -311,17 +316,10 @@ Eigen::VectorXd PositionControl::track_joint_trajectory(const double &time)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::Matrix<double,6,1> PositionControl::grasp_correction()
 {
-	Eigen::Matrix3d R = this->leftPose.rotation();
+
+	Eigen::Matrix<double,6,1> error = pose_error(this->leftPose*this->desiredLeft2Right, this->rightPose);
 	
-	double actualWidth = (this->leftPose.translation() - this->rightPose.translation()).norm();
-	
-	double scalar = 0.1*(this->graspWidth - actualWidth)/2;
-	
-	Eigen::Matrix<double,6,1> temp;
-	temp.head(3) = scalar*R.col(1);
-	temp.tail(3).setZero();
-	
-	return temp;
+	return -this->K*error;
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -417,9 +415,10 @@ Eigen::VectorXd PositionControl::icub2_cartesian_control(const Eigen::Matrix<dou
 		          << "Manipulability is " << mu << " and the threshold is set at "
 		          << this->threshold << ".\n";
 		          
-		// NOTE: Doesn't seem to be working well, so I stopped it for now
-		/*
-		double damping = (1 - mu/this->threshold)*this->maxDamping;
+		// NOTE: This does not seem to work well when the joints are running in
+		// PositionDirect mode, so I deactivated it
+		
+		/*double damping = (1 - mu/this->threshold)*this->maxDamping;
 
 		Eigen::VectorXd startPoint(this->numJoints);
 		

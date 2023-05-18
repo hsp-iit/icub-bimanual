@@ -77,6 +77,8 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 					{
 						throw std::runtime_error(errorMessage + "Could not obtain encoder values in 5 attempts.");
 					}
+					
+					yarp::os::Time::delay(0.5);                                 // Wait a little bit before trying again
 				}
 				
 				std::cout << "[INFO] [JOINT INTERFACE] Successfully configured the joint motors.\n";

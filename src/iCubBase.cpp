@@ -53,11 +53,11 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 		{
 			temp.addAdditionalFrameToLink("l_hand_palm", "left",
 			                              iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-			                                                  iDynTree::Position(0, 0, -0.05)));
+			                                                  iDynTree::Position(0, -0.02, -0.05)));
 			                                                  
                 	temp.addAdditionalFrameToLink("r_hand_palm", "right",
                 				      iDynTree::Transform(iDynTree::Rotation::RPY(0.0,M_PI/2,0.0),
-                				                          iDynTree::Position(0, 0, -0.05)));
+                				                          iDynTree::Position(0, 0.02, -0.05)));
 			
 			this->basePose = iDynTree::Transform(iDynTree::Rotation::RPY(0,0,0),
 			                                     iDynTree::Position(0,0,0));
@@ -378,7 +378,7 @@ bool iCubBase::move_to_poses(const std::vector<Eigen::Isometry3d> &left,
 	{
 		Eigen::Matrix<double,6,1> twist = iDynTree::toEigen(this->computer.getFrameVel("left"));
 		
-		this->leftTrajectory  = CartesianTrajectory(leftPoints,t,twist);                    // Assign new trajectory for left hand
+		this->leftTrajectory = CartesianTrajectory(leftPoints,t,twist);                     // Assign new trajectory for left hand
 		
 		twist = iDynTree::toEigen(this->computer.getFrameVel("right"));
 		
@@ -418,7 +418,9 @@ bool iCubBase::grasp_object()
 	{		
 		this->isGrasping = true;                                                            // Set grasp constraint
 		
-		this->graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
+		this->desiredLeft2Right = this->leftPose.inverse()*this->rightPose;
+		
+		double graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
 		
 		Eigen::Isometry3d localPose(Eigen::Translation3d(0,-graspWidth/2,0));               // Negative y-axis of left hand, half the distance between hands
 		
@@ -537,9 +539,9 @@ Eigen::Matrix<double,6,1> iCubBase::pose_error(const Eigen::Isometry3d &desired,
 {
 	Eigen::Matrix<double,6,1> error;                                                            // Value to be computed
 	
-	error.head(3) = desired.translation() - actual.translation();                               // Position / translation error
+	error.block(0,0,3,1) = desired.translation() - actual.translation();                        // Position / translation error
 	
-	error.tail(3) = angle_axis(desired.rotation()*(actual.rotation().transpose()));             // Get angle*axis representation of Rd*Ra'
+	error.block(3,0,3,1) = angle_axis(desired.rotation()*(actual.rotation().transpose()));      // Get angle*axis representation of Rd*Ra'
 	
 	return error;
 }
@@ -646,18 +648,21 @@ bool iCubBase::set_singularity_avoidance_params(const double &_maxDamping, const
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::Vector3d iCubBase::angle_axis(const Eigen::Matrix3d &R)
 {
-	double trace = R(0,0) + R(1,1) + R(2,2);
-	
-	double angle = acos((trace-1)/2);
-	
-	if(abs(angle) < 1e-05) return Eigen::Vector3d::Zero();                                      
+	double ratio = std::min( (R(0,0) + R(1,1) + R(2,2) - 1)/2.0 , 1.0 );                        // Rounding error can cause ratio > 1.0000000
+
+	double angle = acos(ratio);
+
+	if(abs(angle) < 1e-05)
+	{
+		return Eigen::Vector3d::Zero();                                                     // Angle is small so axis is trivial
+	}                                  
 	else
 	{
-		if(angle > M_PI) angle = 2*M_PI - angle;                                            // Ensure angle is within [-3.14159, 3.14159]
+		double scalar = angle/(2*sin(angle));
 		
-		return Eigen::Vector3d(angle*(R(2,1)-R(1,2)),
-		                       angle*(R(0,2)-R(2,0)),
-		                       angle*(R(1,0)-R(0,1)));
+		return Eigen::Vector3d(scalar*(R(2,1)-R(1,2)),
+		                       scalar*(R(0,2)-R(2,0)),
+		                       scalar*(R(1,0)-R(0,1)));
 	}
 }
 
