@@ -140,6 +140,7 @@ class iCubBase : public QPSolver,
 		Eigen::VectorXd redundant_task();                                                   // Compute the desired redundant task
 		
 		// Grasp control
+		
 		bool isGrasping = false;
 		
 		Eigen::Matrix<double,6,12> G;                                                       // Grasp matrix
@@ -150,7 +151,7 @@ class iCubBase : public QPSolver,
 		
 		CartesianTrajectory payloadTrajectory;                                              // Trajectory generator for a grasped object
 		
-		double graspWidth = 0.0;                                                            // Distance between hands from initial grasp
+		Eigen::Isometry3d desiredLeft2Right;                                                // Desired pose of left hand to right hand when grasping
 	
 	private:
 		
