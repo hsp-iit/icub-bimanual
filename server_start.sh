@@ -45,7 +45,7 @@ tmux send-keys    -t $SESSION "gazebo $WORLD" Enter
 
 # Select Pane 0, launch the yarp server
 tmux select-pane -t 0
-tmux send-keys   -t $SESSION "sleep 5" Enter                                                        # Wait for Gazebo to launch
+tmux send-keys   -t $SESSION "sleep 4" Enter                                                        # Wait for Gazebo to launch
 tmux send-keys   -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $SERVERNAME $PORT $URDF $CONFIG" Enter
 
 tmux attach-session -t $SESSION:0                                                        # REQUIRED or the above won't execute
