@@ -42,7 +42,7 @@ class JointInterface
 		yarp::dev::IControlLimits*   limits;                                                // Joint limits?
 		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 		yarp::dev::IEncoders*        encoders;                                              // Joint position values (in degrees)
-		yarp::dev::IPositionDirect*  pController;
+		yarp::dev::ITorqueControl*   controller;                                            // As it says
 		yarp::dev::PolyDriver        driver;                                                // Device driver
 	
 };                                                                                                  // Semicolon needed after class declaration

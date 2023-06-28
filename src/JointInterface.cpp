@@ -39,7 +39,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 	if(not this->driver.open(options)) throw std::runtime_error(errorMessage + "Could not open the device driver.");
 	else
 	{
-		     if(not this->driver.view(this->pController)) throw std::runtime_error(errorMessage + "Unable to configure the position controller for the joint motors.");
+		     if(not this->driver.view(this->controller))  throw std::runtime_error(errorMessage + "Unable to configure the torque controller for the joint motors.");
 		else if(not this->driver.view(this->mode))        throw std::runtime_error(errorMessage + "Unable to configure the control mode.");
 		else if(not this->driver.view(this->limits))      throw std::runtime_error(errorMessage + "Unable to obtain the joint limits.");
 		else
@@ -56,7 +56,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 				this->positionLimit[i][1] *= M_PI/180.0;
 				this->velocityLimit[i]    *= M_PI/180.0;
 				
-				if(not this->mode->setControlMode(i,VOCAB_CM_POSITION_DIRECT))
+				if(not this->mode->setControlMode(i,VOCAB_CM_TORQUE))
 				{
 					errorMessage += "Unable to set the control mode for joint " + std::to_string(i) + ".";
 					
@@ -129,7 +129,7 @@ bool JointInterface::read_encoders(Eigen::VectorXd &pos, Eigen::VectorXd &vel)
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
- //                                 Send commands to the joint motors                              //
+ //                                  Send commands to the joint motors                              //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool JointInterface::send_joint_commands(const Eigen::VectorXd &commands)
 {
@@ -145,7 +145,7 @@ bool JointInterface::send_joint_commands(const Eigen::VectorXd &commands)
 	{
 		for(int i = 0; i < this->numJoints; i++)
 		{
-			if(not this->pController->setPosition(i,commands[i]*180.0/M_PI))
+			if(not this->controller->setRefTorque(i,commands[i]))
 			{
 				std::cerr << "[ERROR] [JOINT INTERFACE] send_joint_commands(): "
 				          << "Could not send a command for joint " << i << ".\n";

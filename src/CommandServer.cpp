@@ -7,7 +7,7 @@
 #include <CommandInterface.h>                                                                       // thrift-generated class
 #include <iostream>                                                                                 // std::cerr, std::cout
 #include <map>                                                                                      // std::map
-#include <PositionControl.h>                                                                        // For control of ergoCub, iCub robots
+#include <ForceControl.h>                                                                           // For control of ergoCub, iCub robots
 #include <Utilities.h>                                                                              // JointTrajectory object structure
 #include <yarp/os/Property.h>                                                                       // Load configuration files
 #include <yarp/os/RpcServer.h>                                                                      // Allows communication over yarp ports
@@ -19,7 +19,7 @@ class CommandServer : public CommandInterface
 {
 	public:
 	
-		CommandServer(PositionControl *_robot,
+		CommandServer(ForceControl *_robot,
 		              std::map<std::string,JointTrajectory> *_jointActionMap,
 		              std::map<std::string,CartesianMotion> *_leftHandMap,
 		              std::map<std::string,CartesianMotion> *_rightHandMap,
@@ -289,7 +289,7 @@ class CommandServer : public CommandInterface
 	private:
 		bool serverActive = true;
 		
-		PositionControl *robot;                                                             // Pointer to robot object
+		ForceControl *robot;                                                                // Pointer to robot object
 		
 		std::map<std::string, JointTrajectory> *jointActionMap;                             // Map of prescribed joint configurations
 
@@ -371,7 +371,7 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;                 // Try and put the named actions together in the map
+		if(not load_cartesian_trajectories(bottle,nameList,leftHandMap)) return 1;          // Try and put the named actions together in the map
 		
 		// Load the right hand actions from the config file
 		std::map<std::string, CartesianMotion> rightHandMap;
@@ -385,13 +385,12 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;                // Put them in to the map
-		
+		if(not load_cartesian_trajectories(bottle,nameList,rightHandMap)) return 1;         // Put them in to the map
 		
 		// Load the grasp actions from the config file
-		std::map<std::string, CartesianMotion> graspActionMap;                                     // Create map object
+		std::map<std::string, CartesianMotion> graspActionMap;                              // Create map object
 		
-		bottle->clear(); bottle = &parameter.findGroup("GRASP_ACTIONS");                           // Find grasp actions in config file
+		bottle->clear(); bottle = &parameter.findGroup("GRASP_ACTIONS");                    // Find grasp actions in config file
 		
 		if(bottle == nullptr)
 		{
@@ -400,12 +399,11 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
-		nameList = string_from_bottle(bottle->find("names").asList());                             // Get all the names
+		nameList = string_from_bottle(bottle->find("names").asList());                      // Get all the names
 		
-		if(not load_cartesian_trajectories(bottle,nameList,graspActionMap)) return 1;              // Load actions in to map
-	
+		if(not load_cartesian_trajectories(bottle,nameList,graspActionMap)) return 1;       // Load actions in to map
 		
-		PositionControl robot(pathToURDF, jointNames, portList, robotModel);                // Start up the robot
+		ForceControl robot(pathToURDF, jointNames, portList, robotModel);                   // Start up the robot
 		
 		// Set the Cartesian gains
 		double kp = parameter.findGroup("CARTESIAN_GAINS").find("proportional").asFloat64();
@@ -442,7 +440,6 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		robot.set_desired_joint_position(vector_from_bottle(bottle));
-		
 		
 		// Establish communication over YARP
 		yarp::os::Network yarp;

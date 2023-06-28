@@ -237,11 +237,7 @@ Eigen::Isometry3d iCubBase::iDynTree_to_Eigen(const iDynTree::Transform &T)
 bool iCubBase::move_to_position(const Eigen::VectorXd &position,
                                 const double &time)
 {
-	if((this->q - position).norm() < 0.5 and this->qdot.norm() < 0.5)
-	{
-		return true;                                                                        // Already there
-	}
-	else if(position.size() != this->numJoints)
+	if(position.size() != this->numJoints)
 	{
 		std::cerr << "[ERROR] [ICUB BASE] move_to_position(): "
 			  << "Position vector had " << position.size() << " elements, "
@@ -332,6 +328,8 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 		}
 		
 		this->endTime = times.back();                                                       // Assign the end time
+		
+		std::cout << "What the fuck is going on\n";
 		
 		start();                                                                            // Start the control thread
 		return true;                                                                        // Success

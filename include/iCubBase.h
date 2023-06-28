@@ -105,6 +105,8 @@ class iCubBase : public QPSolver,
 		
 		iDynTree::Transform basePose;                                                       // Pose of the base
 		
+		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
+		
 		// Joint control
 		double kp = 1.0;                                                                    // Default proportional gain
 		
@@ -143,9 +145,9 @@ class iCubBase : public QPSolver,
 		
 		bool isGrasping = false;
 		
-		Eigen::Matrix<double,6,12> G;                                                       // Grasp matrix
+		Eigen::Matrix<double,6,12> G, Gdot;                                                 // Grasp matrix
 		
-		Eigen::Matrix<double,6,12> C;                                                       // Constraint matrix
+		Eigen::Matrix<double,6,12> C, Cdot;                                                 // Constraint matrix
 		
 		Payload payload;                                                                    // Class for representing object being held
 		
@@ -154,9 +156,6 @@ class iCubBase : public QPSolver,
 		Eigen::Isometry3d desiredLeft2Right;                                                // Desired pose of left hand to right hand when grasping
 	
 	private:
-		
-		// Kinematic & dynamic modelling
-		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
 		
 		// Functions
 		iDynTree::Transform Eigen_to_iDynTree(const Eigen::Isometry3d &T);                  // Convert Eigen::Isometry to iDynTree::Transform
