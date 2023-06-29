@@ -6,7 +6,6 @@
 #define FORCE_CONTROL_H_
 
 #include <iCubBase.h>
-#include <iDynTree/Model/FreeFloatingState.h>
 
 class ForceControl : public iCubBase
 {

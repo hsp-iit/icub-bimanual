@@ -56,7 +56,7 @@ JointInterface::JointInterface(const std::vector<std::string> &jointList,
 				this->positionLimit[i][1] *= M_PI/180.0;
 				this->velocityLimit[i]    *= M_PI/180.0;
 				
-				if(not this->mode->setControlMode(i,VOCAB_CM_TORQUE))
+				if(not this->mode->setControlMode(i,VOCAB_CM_POSITION_DIRECT))
 				{
 					errorMessage += "Unable to set the control mode for joint " + std::to_string(i) + ".";
 					

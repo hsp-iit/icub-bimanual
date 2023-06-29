@@ -82,7 +82,9 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 		{
 			// Resize vectors and matrices based on number of joints
 			this->jointTrajectory.resize(this->numJoints);                              // Trajectory for joint motion control		
-						
+			
+			this->generalForces.resize(this->computer.model());
+				
 			// Set the static parts of the grasp matrices
 			
 			// G = [    I    0     I    0 ]
@@ -149,6 +151,10 @@ bool iCubBase::update_state()
 			this->computer.getFreeFloatingMassMatrix(temp);                             // Compute inertia matrix for joints & base
 			this->M = temp.block(6,6,this->numJoints,this->numJoints);                  // Remove floating base
 			this->invM = this->M.partialPivLu().inverse();                              // We will need the inverse late
+			
+			// Compute Coriolis and gravity torques
+			this->computer.generalizedBiasForces(this->generalForces);
+			this->coriolisAndGravity = iDynTree::toEigen(this->generalForces.jointTorques());	
 			
 			// Update hand poses
 			this->leftPose  = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));
@@ -329,9 +335,8 @@ bool iCubBase::move_to_positions(const std::vector<Eigen::VectorXd> &positions,
 		
 		this->endTime = times.back();                                                       // Assign the end time
 		
-		std::cout << "What the fuck is going on\n";
-		
 		start();                                                                            // Start the control thread
+		
 		return true;                                                                        // Success
 	}
 }

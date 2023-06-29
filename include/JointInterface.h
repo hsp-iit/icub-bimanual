@@ -36,11 +36,11 @@ class JointInterface
 		
 		std::vector<double>               velocityLimit;                                    // Absolute joint velocity
 		
+		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 	private:
 		
 	   	// These interface with the hardware on the robot itself
 		yarp::dev::IControlLimits*   limits;                                                // Joint limits?
-		yarp::dev::IControlMode*     mode;                                                  // Sets the control mode of the motor
 		yarp::dev::IEncoders*        encoders;                                              // Joint position values (in degrees)
 		yarp::dev::ITorqueControl*   controller;                                            // As it says
 		yarp::dev::PolyDriver        driver;                                                // Device driver

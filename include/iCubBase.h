@@ -11,6 +11,7 @@
 #include <Eigen/Dense>                                                                              // Tensors and matrix decomposition
 #include <iDynTree/Core/EigenHelpers.h>                                                             // Converts iDynTree tensors to Eigen tensors
 #include <iDynTree/Core/CubicSpline.h>                                                              // Uses for joint trajectories
+#include <iDynTree/Model/FreeFloatingState.h>                                                       // iDynTree::FreeFloatingGeneralizedTorques
 #include <iDynTree/KinDynComputations.h>                                                            // Class for invers dynamics calculations
 #include <iDynTree/Model/Model.h>                                                                   // Class that holds info on kinematic tree structure
 #include <iDynTree/ModelIO/ModelLoader.h>                                                           // Extracts information from URDF
@@ -99,7 +100,8 @@ class iCubBase : public QPSolver,
 		double dt = 0.01;
 			
 		// Kinematics & dynamics
-		Eigen::VectorXd q, qdot;                                                            // Joint positions and velocities
+		
+		Eigen::VectorXd q, qdot, coriolisAndGravity;                                        // Joint positions and velocities
 		
 		Eigen::MatrixXd Jleft, Jright, J, M, invM;                                          // Jacobian, inertia, and inverse of inertia
 		
@@ -107,7 +109,10 @@ class iCubBase : public QPSolver,
 		
 		iDynTree::KinDynComputations computer;                                              // Does all the kinematics & dynamics
 		
+		iDynTree::FreeFloatingGeneralizedTorques generalForces;                             // Class for storing information
+		
 		// Joint control
+		
 		double kp = 1.0;                                                                    // Default proportional gain
 		
 		double kd = 2*sqrt(this->kp);                                                       // Theoretically optimal damping
@@ -115,6 +120,7 @@ class iCubBase : public QPSolver,
 		std::vector<iDynTree::CubicSpline> jointTrajectory;                                 // As it says
 		
 		// Cartesian control
+		
 		double maxDamping = 0.01;                                                           // For singularity avoidance
 		
 		double threshold  = 0.001;                                                          // For activating singularity avoidance

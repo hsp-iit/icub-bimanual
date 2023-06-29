@@ -6,16 +6,24 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool ForceControl::threadInit()
 {
-	std::cout << "Here we are in threadInit() so where is the damn problem???\n";
-	
 	if(isRunning())
 	{
-		std::cout << "[ERROR] [FORCE CONTROL] threadInit(): "
-		          << "A control thread is still running!\n";
+		std::cerr << "[ERROR] [FORCE CONTROL] threadInit(): A control thread is still running!\n";
+		
 		return false;
 	}
 	else
 	{
+		for(int i = 0; i < this->numJoints; i++)
+		{
+			if(not this->mode->setControlMode(i,VOCAB_CM_TORQUE))
+			{
+				std::cerr << "[ERROR] [FORCE CONTROL] threadInit(): Unable to activate torque control for joint " << i << ".\n";
+	
+				return false;
+			}
+		}
+			
 		// Reset values
 		QPSolver::clear_last_solution();                                                    // Remove last solution
 		this->isFinished = false;                                                           // New action started
@@ -29,58 +37,33 @@ bool ForceControl::threadInit()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void ForceControl::run()
 {
-	std::cout << "WTF?!\n";
-/*
 	if(update_state())
 	{
-		std::cout << "What\n";
-		
 		double elapsedTime = yarp::os::Time::now() - this->startTime;                       // Time since start of control
-		
-		std::cout << "The\n";
 		
 		if(elapsedTime > this->endTime) this->isFinished = true;                            
 		
-		std::cout << "Fuck\n";
-		
-		Eigen::VectorXd tau(this->numJoints); tau.setZero();                                // We want to solve for this
-		
-		std::cout << "Why\n";
+		Eigen::VectorXd tau(this->numJoints); tau.setZero();
 		
 		if(this->controlSpace == joint)
 		{
-			std::cout << "Isn't\n";
-			
 			Eigen::VectorXd qddot = track_joint_trajectory(elapsedTime);
 			
-			std::cout << "This\n";
-
-			iDynTree::Vector6 baseAcc; baseAcc.zero();                                       // No base acceleration
-			iDynTree::LinkNetExternalWrenches wrench(this->computer.model()); wrench.zero(); // No external wrenches
-			iDynTree::FreeFloatingGeneralizedTorques generalizedTorques;                     // This is where we store the result
-			
-			std::cout << "Working\n";
-	
-			this->computer.inverseDynamics(baseAcc, qddot, wrench, generalizedTorques); // Solve the inverse dynamics
-			
-			tau = iDynTree::toEigen(generalizedTorques.jointTorques());                 // Extract the joint torque vector
+			tau = this->M*qddot + this->coriolisAndGravity;
 		}
 		else // this->controlSpace == Cartesian
 		{
 			
 		}
-
-		std::cout << "Here are the joint torques:\n";
-		std::cout << tau.transpose() << std::endl;
 		
-		if(not send_joint_commands(tau)) std::cerr << "[ERROR] [FORCE CONTROL] Coul dnot send joint commands for some reason.\n";
+		if(not send_joint_commands(tau)) std::cerr << "[ERROR] [FORCE CONTROL] run(): Could not send joint commands for some reason.\n";
+
 	}
 	else
 	{
 		std::cerr << "[FLAGRANT SYSTEM ERROR] [FORCE CONTROL] run(): "
 		          << "Unable to update the robot state for some reason.\n";
 	}
-*/
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,11 +71,10 @@ void ForceControl::run()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void ForceControl::threadRelease()
 {
-	iDynTree::FreeFloatingGeneralizedTorques generalizedTorques;                                // Temporary storage
-	
-	this->computer.generalizedGravityForces(generalizedTorques);                                // Compute torques needed to negate gravity
-	
-	send_joint_commands(iDynTree::toEigen(generalizedTorques.jointTorques()));                  // Send to motors
+	for(int i = 0; i < this->numJoints; i++)
+	{
+		this->mode->setControlMode(i,VOCAB_CM_POSITION);
+	}
 }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +95,7 @@ bool ForceControl::compute_joint_limits(double &lower, double &upper, const unsi
 	else
 	{
 		lower = std::max( 2*(this->positionLimit[jointNum][0] - this->q[jointNum] - this->dt*this->qdot[jointNum])/(this->dt*this->dt),
-		                   -(this->velocityLimit[jointNum] + this->qdot[jointNum])/this->dt );
+	 	                   -(this->velocityLimit[jointNum] + this->qdot[jointNum])/this->dt );
 		                   
 		upper = std::min( 2*(this->positionLimit[jointNum][1] - this->q[jointNum] - this->dt*this->qdot[jointNum])/(this->dt*this->dt),
 		                    (this->velocityLimit[jointNum] - this->qdot[jointNum])/this->dt );
@@ -179,7 +161,7 @@ Eigen::Matrix<double,12,1> ForceControl::track_cartesian_trajectory(const double
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 Eigen::VectorXd ForceControl::track_joint_trajectory(const double &time)
 {
-	Eigen::VectorXd qddot(this->numJoints); qddot.setZero();                                    // Value to be returned
+	Eigen::VectorXd qddot(this->numJoints);
 	
 	double pos, vel, acc, lowerBound, upperBound;
 	
@@ -189,10 +171,18 @@ Eigen::VectorXd ForceControl::track_joint_trajectory(const double &time)
 		
 		qddot(i) = acc + this->kd*(vel - this->qdot(i)) + this->kp*(pos - this->q(i));
 		
-		compute_joint_limits(lowerBound,upperBound,i);
-		
-		     if(qddot(i) <= lowerBound) qddot(i) = lowerBound + 0.001;                      // Just above the lower bound
-		else if(qddot(i) >= upperBound) qddot(i) = upperBound - 0.001;                      // Just below the upper bound
+		if(not compute_joint_limits(lowerBound,upperBound,i))
+		{
+			std::cerr << "[ERROR] [FORCE CONTROL] track_joint_trajectory(): "
+			          << "Unable to compute limits for joint " << i << ".\n";
+			          
+			qddot = -this->kd*this->qdot;                                               // Slow down
+		}
+		else
+		{
+			     if(qddot(i) <= lowerBound) qddot(i) = lowerBound + 0.001;              // Just above the lower bound
+			else if(qddot(i) >= upperBound) qddot(i) = upperBound - 0.001;              // Just below the upper bound
+		}
 	}
 	
 	return qddot;
