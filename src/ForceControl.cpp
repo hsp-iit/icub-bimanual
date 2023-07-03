@@ -53,7 +53,42 @@ void ForceControl::run()
 		}
 		else // this->controlSpace == Cartesian
 		{
+			Eigen::Matrix<double,12,1> xddot = track_cartesian_trajectory(elapsedTime); // NOTE: Nonlinear effect Jdot*qdot already subtracted!
 			
+			Eigen::VectorXd redundantTask = this->kr*redundant_task() - this->qdot;     // Need to add damping in torque mode for stability
+			
+			Eigen::VectorXd lowerBound(this->numJoints), upperBound(this->numJoints);
+			
+			for(int i = 0; i < this->numJoints; i++) compute_joint_limits(lowerBound(i), upperBound(i), i);
+			
+			Eigen::VectorXd startPoint(this->numJoints);                                // This is needed for the QP solver
+			
+			if(QPSolver::last_solution_exists())
+			{
+				startPoint = QPSolver::last_solution().tail(this->numJoints);       // Remove any Lagrange multipliers
+				
+				for(int i = 0; i < this->numJoints; i++)
+				{
+					     if(startPoint(i) <= lowerBound(i)) startPoint(i) = lowerBound(i) + 0.01;
+					else if(startPoint(i) >= upperBound(i)) startPoint(i) = upperBound(i) - 0.01;
+				}				
+			}
+			else  startPoint = 0.5*(lowerBound + upperBound);                           // Half way between limits
+			
+			Eigen::VectorXd qddot;
+			
+			try
+			{
+				qddot = QPSolver::redundant_least_squares(redundantTask, this->M, xddot, this->J, lowerBound, upperBound, startPoint);
+			}
+			catch(const std::exception &exception)
+			{
+				std::cerr << exception.what() << std::endl;
+				
+				qddot = -2*this->qdot;                                              // Try not to move
+			}
+			
+			tau = this->M*qddot + this->coriolisAndGravity;				
 		}
 		
 		if(not send_joint_commands(tau)) std::cerr << "[ERROR] [FORCE CONTROL] run(): Could not send joint commands for some reason.\n";
@@ -137,22 +172,28 @@ Eigen::Matrix<double,12,1> ForceControl::track_cartesian_trajectory(const double
 	}
 	else
 	{
-		Eigen::Matrix<double,12,1> xdot = this->J*this->qdot;                               
-		
 		if(not this->leftTrajectory.get_state(pose,vel,acc,time))
 		{
 			std::cerr << "[ERROR] [FORCE CONTROL] track_cartesian_trajectory(): "
                                   << "Unable to obtain the desired state for the left hand.\n";
                 }
-                else xddot.head(6) = acc + this->D*(vel - xdot.head(6)) + this->K*pose_error(pose,this->leftPose);
-  
+                else xddot.head(6) = acc
+                                   + this->D*(vel - iDynTree::toEigen(this->computer.getFrameVel("left")))
+                                   + this->K*pose_error(pose,this->leftPose);
+		
   		if(not this->rightTrajectory.get_state(pose,vel,acc,time))
   		{
   			std::cerr << "[ERROR] [FORCE CONTROL] track_cartesian_trajectory(): "
   			          << "Unable to obtain the desired state for the right hand.\n";
   		}
-  		else xddot.tail(6) = acc + this->D*(vel - xdot.tail(6)) + this->K*pose_error(pose,this->rightPose);
+  		else xddot.tail(6) = acc
+  		                   + this->D*(vel - iDynTree::toEigen(this->computer.getFrameVel("right")))
+  		                   + this->K*pose_error(pose,this->rightPose);
 	}
+	
+	// Subtract effect of nonlinear acceleration xddot - Jdot*qdot
+	xddot.head(6) -= iDynTree::toEigen(this->computer.getFrameBiasAcc("left"));
+	xddot.tail(6) -= iDynTree::toEigen(this->computer.getFrameBiasAcc("right"));
 	
 	return xddot;
 }
