@@ -79,13 +79,19 @@ void ForceControl::run()
 			
 			try
 			{
-				qddot = QPSolver::redundant_least_squares(redundantTask, this->M, xddot, this->J, lowerBound, upperBound, startPoint);
+				qddot = QPSolver::redundant_least_squares(this->invM*redundantTask, this->M, xddot, this->J, lowerBound, upperBound, startPoint);
 			}
 			catch(const std::exception &exception)
 			{
 				std::cerr << exception.what() << std::endl;
 				
 				qddot = -2*this->qdot;                                              // Try not to move
+			}
+			
+			// Re-solve the problem subject to grasp constraints
+			if(this->isGrasping)
+			{
+			
 			}
 			
 			tau = this->M*qddot + this->coriolisAndGravity;				
