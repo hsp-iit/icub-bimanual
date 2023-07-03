@@ -122,8 +122,8 @@ bool CartesianTrajectory::get_state(Eigen::Isometry3d         &pose,
 	
 	Eigen::Vector3d axis;
 	
-	if(angle == 0) axis = Eigen::Vector3d::UnitX();                                             // Axis is trivial
-	else           axis = Eigen::Vector3d(rot[0]/angle,rot[1]/angle,rot[2]/angle);
+	if(abs(angle) < 1e-03) axis = Eigen::Vector3d::UnitX();                                     // Axis is trivial
+	else                   axis = Eigen::Vector3d(rot[0]/angle,rot[1]/angle,rot[2]/angle);
 	
 	pose = Eigen::Translation3d(pos[0],pos[1],pos[2])*Eigen::AngleAxisd(angle,axis);
 
