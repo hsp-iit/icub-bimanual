@@ -4,8 +4,8 @@ SESSION="client"                                                                
 SERVERNAME="/commandServer"                                                              # Name of the yarp server for controlling the robot
 
 # Options
-CONFIG="~/workspace/icub-bimanual/config/ergocub.ini"
-#CONFIG="~/workspace/icub-bimanual/config/icub2.ini"                                                             
+CONFIG="~/icub-bimanual/config/ergocub.ini"
+#CONFIG="~/icub-bimanual/config/icub2.ini"                                                             
 
 # Window layout:
 
@@ -25,7 +25,7 @@ tmux rename-window -t  0 'Client'
 
 # Split Pane 1 to the right and launch the client
 tmux split-window -h
-tmux send-keys -t $SESSION "~/workspace/icub-bimanual/build/bin/command_prompt $SERVERNAME $CONFIG" Enter
+tmux send-keys -t $SESSION "~/icub-bimanual/build/bin/command_prompt $SERVERNAME $CONFIG" Enter
 
 # Switch back to Pane 0 and run yarp rpc
 tmux select-pane -t 0

@@ -4,10 +4,10 @@ SESSION="server"                                                                
 SERVERNAME="/commandServer"                                                              # Name of the yarp server for controlling the robot
 
 # Options
-CONFIG="~/workspace/icub-bimanual/config/ergocub.ini"
+CONFIG="~/icub-bimanual/config/ergocub.ini"
 PORT="/ergocubSim"
-URDF="~/workspace/robotology-superbuild/src/ergocub-software/urdf/ergoCub/robots/ergoCubGazeboV1/model.urdf"
-WORLD="~/workspace/icub-bimanual/gazebo/worlds/ergocub_grasp_demo.sdf"
+URDF="~/robotology-superbuild/build/install/share/ergoCub/robots/ergoCubGazeboV1/model.urdf"
+WORLD="~/icub-bimanual/gazebo/worlds/ergocub_grasp_demo.sdf"
 
 #CONFIG="~/workspace/icub-bimanual/config/icub2.ini"                                                             
 #PORT="/icubSim"                                                                          # Port name
@@ -41,12 +41,13 @@ if pidof -x "gzserver" >/dev/null; then
 fi
 
 tmux split-window -v
-tmux send-keys    -t $SESSION "gazebo $WORLD" Enter
+tmux send-keys -t "export YARP_CLOCK=/clock" Enter
+tmux send-keys    -t $SESSION "gazebo $WORLD -s libgazebo_yarp_clock.so -s libgazebo_ros_init.so" Enter
 
 # Select Pane 0, launch the yarp server
 tmux select-pane -t 0
 tmux send-keys   -t $SESSION "sleep 4" Enter                                                        # Wait for Gazebo to launch
-tmux send-keys   -t $SESSION "~/workspace/icub-bimanual/build/bin/command_server $SERVERNAME $PORT $URDF $CONFIG" Enter
+tmux send-keys   -t $SESSION "~/icub-bimanual/build/bin/command_server $SERVERNAME $PORT $URDF $CONFIG" Enter
 
 tmux attach-session -t $SESSION:0                                                        # REQUIRED or the above won't execute
 
