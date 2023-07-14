@@ -30,6 +30,10 @@ class ForceControl : public iCubBase
 		bool threadInit();
 		void run();
 		void threadRelease();
+		
+		void formulate_grasp_constraint(Eigen::Matrix<double,12,1> &fMin,
+		                                Eigen::Matrix<double,12,1> &fMax);
+		                                
 };                                                                                                  // Semicolon needed after class declaration
 
 #endif

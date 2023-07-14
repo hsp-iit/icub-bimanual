@@ -160,39 +160,67 @@ bool iCubBase::update_state()
 			this->leftPose  = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));
 			this->rightPose = iDynTree_to_Eigen(this->computer.getWorldTransform("right"));
 			
+			// Update twist vectors
+			this->leftTwist  = iDynTree::toEigen(this->computer.getFrameVel("left"));
+			this->rightTwist = iDynTree::toEigen(this->computer.getFrameVel("right"));
+			
 			// Update the grasp and constraint matrices
 			if(this->isGrasping)
-			{
-				// Assume the payload is rigidly attached to the left hand
-				this->payload.update_state(this->leftPose, iDynTree::toEigen(this->computer.getFrameVel("left"))); 
-
+			{			
+				this->payload.update_state(this->leftPose, this->leftTwist);        // Assume payload is rigidly attached to the left hand
+				
+				Eigen::Vector3d r, v;                                               // Used in this scope
+				Eigen::Matrix<double,3,3> S;                                        // Used in this scope
+				
 				// G = [    I    0     I    0 ]
 				//     [ S(left) I S(right) I ]
 				
-				// C = [  I  -S(left)  -I  S(right) ]
-				//     [  0      I      0    -I     ]
+				// C = [  I   S(left)  -I -S(right) ]
+				//     [  0      I      0    -I     ]	
 				
-				Eigen::Matrix<double,3,3> S;                                        // Skew symmetric matrix
+				// Update left hand component
 				
-				// Left hand component
-				Eigen::Vector3d r = this->leftPose.translation() - this->payload.pose().translation();
+				r = this->leftPose.translation() - this->payload.pose().translation();
 				
 				S <<    0 , -r(2),  r(1),
 				      r(2),    0 , -r(0),
 				     -r(1),  r(0),    0 ;
-				
+				     
 				this->G.block(3,0,3,3) =  S;
+				
 				this->C.block(0,3,3,3) =  S;
 				
+				v = this->leftTwist.head(3) - this->payload.twist().head(3);
+				
+				S <<    0 , -v(2),  v(1), 
+			              v(2),    0 , -v(0),
+			             -v(1),  v(0),    0 ;
+			             
+			        this->Gdot.block(3,0,3,3) = S;
+			        
+			        this->Cdot.block(0,3,3,3) = S;
+				
 				// Right hand component
+				
 				r = this->rightPose.translation() - this->payload.pose().translation();
 				
 				S <<    0 , -r(2),  r(1),
 				      r(2),    0 , -r(0),
 				     -r(1),  r(0),    0;
 				     
-				this->G.block(3,6,3,3) = S;
-				this->C.block(0,9,3,3) =-S;
+				this->G.block(3,6,3,3) =  S;
+				
+				this->C.block(0,9,3,3) = -S;
+				
+				v = this->rightTwist.head(3) - this->payload.twist().head(3);
+				
+				S <<    0 , -v(2),  v(1), 
+			              v(2),    0 , -v(0),
+			             -v(1),  v(0),    0 ;
+			             
+			        this->Gdot.block(3,6,3,3) =  S;
+			        
+			        this->Cdot.block(0,9,3,3) = -S;				
 			}
 			
 			return true;
@@ -423,7 +451,7 @@ bool iCubBase::grasp_object()
 		
 		this->desiredLeft2Right = this->leftPose.inverse()*this->rightPose;
 		
-		double graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
+		this->graspWidth = (this->leftPose.translation() - this->rightPose.translation()).norm(); // Distance between the hands
 		
 		Eigen::Isometry3d localPose(Eigen::Translation3d(0,-graspWidth/2,0));               // Negative y-axis of left hand, half the distance between hands
 		

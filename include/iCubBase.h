@@ -83,7 +83,9 @@ class iCubBase : public QPSolver,
 		
 		bool move_object(const Eigen::Isometry3d &pose, const double &time);                // Move the grasped object to a single pose
 		              
-		bool move_object(const std::vector<Eigen::Isometry3d> &poses, const std::vector<double> &times); // Move object through multiple waypoints	       
+		bool move_object(const std::vector<Eigen::Isometry3d> &poses, const std::vector<double> &times); // Move object through multiple waypoints
+		
+		void set_grasp_force(const double &force) { this->_graspForce = force; }	       
 
 	protected:
 	
@@ -124,8 +126,6 @@ class iCubBase : public QPSolver,
 		double maxDamping = 0.01;                                                           // For singularity avoidance
 		
 		double threshold  = 0.001;                                                          // For activating singularity avoidance
-	
-		double manipulability;                                                              // Proximity to a singularity
 			
 		Eigen::Matrix<double,6,6> gainTemplate = (Eigen::MatrixXd(6,6) << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 		                                                                  0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
@@ -143,6 +143,8 @@ class iCubBase : public QPSolver,
 		
 		Eigen::Isometry3d leftPose, rightPose;                                              // Left and right hand pose
 		
+		Eigen::Matrix<double,6,1> leftTwist, rightTwist;
+		
 		Eigen::VectorXd desiredPosition;                                                    // For redundancy resolution
 		
 		Eigen::VectorXd redundant_task();                                                   // Compute the desired redundant task
@@ -151,9 +153,11 @@ class iCubBase : public QPSolver,
 		
 		bool isGrasping = false;
 		
-		Eigen::Matrix<double,6,12> G, Gdot;                                                 // Grasp matrix
+		double graspForce = 10.0;
 		
-		Eigen::Matrix<double,6,12> C, Cdot;                                                 // Constraint matrix
+		double graspWidth;
+		
+		Eigen::Matrix<double,6,12> G, Gdot, C, Cdot;                                        // Grasp and constraint matrices
 		
 		Payload payload;                                                                    // Class for representing object being held
 		

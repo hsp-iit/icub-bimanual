@@ -91,7 +91,65 @@ void ForceControl::run()
 			// Re-solve the problem subject to grasp constraints
 			if(this->isGrasping)
 			{
-			
+				// We need to set up a generic QP problem to solve for the
+				// constrained control method
+				
+				Eigen::MatrixXd Jc = this->C*this->J;                               // Constraint matrix
+				
+				// This is annoying and I hate iDynTree for it
+				Eigen::VectorXd Jdotqdot(12);
+				Jdotqdot.head(6) = iDynTree::toEigen(this->computer.getFrameBiasAcc("left"));
+				Jdotqdot.tail(6) = iDynTree::toEigen(this->computer.getFrameBiasAcc("right"));
+				
+				Eigen::VectorXd twist(12);
+				twist.head(6) = this->leftTwist;
+				twist.tail(6) = this->rightTwist;
+				
+				Eigen::VectorXd Jcdotqdot = this->C*Jdotqdot + this->Cdot*twist;
+				
+				// H = [ 0    Jc  ]
+				//     [ Jc'   M  ]
+				
+				Eigen::MatrixXd H(6+this->numJoints,6+this->numJoints);
+				H.block(              0, 0,              6,                6).setZero();
+				H.block(              0, 6,              6,  this->numJoints) = Jc;
+				H.block(this->numJoints, 6, this->numJoints,               6) = Jc.transpose();
+				H.block(              6, 6, this->numJoints, this->numJoints) = this->M;
+				
+				// f = [ Jcdot *qdot ]
+				//     [   - tau2    ]
+				
+				Eigen::VectorXd f(6+this->numJoints);
+				f.head(6) = Jcdotqdot;
+				f.tail(this->numJoints) = -this->M*qddot;                           // Needs to be converted to torque
+				
+				// B = [ -C'  0  ]
+				//     [  C'  0  ]
+				//     [  0  -I  ]
+				//     [  0   I  ]
+				
+				Eigen::MatrixXd B(24+2*this->numJoints,6+this->numJoints);
+				
+				B.block(                 0, 0,                12,               6) = -this->C.transpose();
+				B.block(                12, 0,                12,               6) =  this->C.transpose();
+				B.block(                 0, 6,                24,              12).setZero();
+				B.block(                24, 0, 2*this->numJoints, this->numJoints).setZero();
+				B.block(                24, 6,   this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+				B.block(24+this->numJoints, 6,   this->numJoints, this->numJoints).setIdentity();
+				
+				// z = [   -fmax    ]
+				//     [    fmin    ]
+				//     [ -qddot_max ]
+				//     [  qddot_min ]
+				
+				Eigen::VectorXd z(24+2*this->numJoints);
+				
+				formulate_grasp_constraints(fMin, fMax);
+				
+				z.block(                 0, 0,              12, 1) = -fMax;
+				z.block(                12, 0,              12, 1) =  fMin;
+				z.block(                24, 0, this->numJoints, 1) = -upperBound;
+				z.block(24+this->numJoints, 0, this->numJoints, 1) =  lowerBound;
 			}
 			
 			tau = this->M*qddot + this->coriolisAndGravity;				
@@ -233,4 +291,28 @@ Eigen::VectorXd ForceControl::track_joint_trajectory(const double &time)
 	}
 	
 	return qddot;
+}
+
+void ForceControl::formulate_grasp_constraint(Eigen::Matrix<double,12,1> &fMin, Eigen::Matrix<double,12,1> &fMax)
+{
+	Eigen::Vector3d leftAxis  =-this->leftPose.rotation().col(1);                               // Points out from back of hand, so we need to reverse it
+	Eigen::Vector3d rightAxis = this->rightPose.rotation().col(1);                              // Points out of palm, leave as is
+	
+	
+	for(int i = 0; i < 3; i++)
+	{
+		// Set the bounds so that the force is always point inward toward the object
+		
+		fMin(i) = std::min(0,this->graspForce*leftAxis(i));
+		fMax(i) = std::max(0,this->graspForce*leftAxis(i));                                 
+		
+		fMin(i+6) = std::min(0,this->graspForce*rightAxis(i));
+		fMax(i+6) = std::max(0,this->graspForce*rightAxis(i));
+		
+		// Bounds on the moments (not sure how to generate these?)
+		fMin(i+3) = -1;
+		fMax(i+3) =  1;
+		fMin(i+9) = -1;
+		fMax(i+9) =  1;
+	}	
 }
