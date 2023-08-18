@@ -216,39 +216,12 @@ void PositionControl::run()
 					std::cout << "[WARNING] [POSITION CONTROL] Robot is (near) singular! "
 					          << "Manipulability is " << this->manipulability << " and "
 					          << "threshold was set at " << this->threshold << ".\n";
-					       
-					
-					// NOTE This doesn't work very well when the motors are
-					// running in PositionDirect mode.
-					
-					/*double damping = (1 - pow(this->manipulability/this->threshold,2)) * this->maxDamping;
-					
-					// v = [  0 ]
-					//     [ dx ]
-					Eigen::VectorXd v(this->numJoints + 12);
-					v.head(this->numJoints).setZero();
-					v.tail(12) = dx;
-					
-					// P = [ damping*I ]
-					//     [     J     ]
-					Eigen::MatrixXd P(12+this->numJoints,this->numJoints);
-					P.block(              0, 0, this->numJoints, this->numJoints) = damping*Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-					P.block(this->numJoints, 0,              12, this->numJoints) = this->J;
-					
-					try // to solve the QP problem
-					{
-						dq = QPSolver::least_squares(v,P, Eigen::MatrixXd::Identity(12+this->numJoints,12+this->numJoints),
-						                             lowerBound,upperBound,startPoint);
-					}
-					catch(const std::exception &exception)
-					{
-						std::cout << exception.what() << std::endl;
-					}*/
 				}
 				
+				/*
 				if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
 				{	
-					Eigen::Matrix<double,6,1> dc = grasp_correction();
+					Eigen::Matrix<double,6,1> dc; dx.setZero(); // = grasp_correction();
 					
 				 	Eigen::MatrixXd Jc = this->C*this->J;
 				 	
@@ -261,6 +234,7 @@ void PositionControl::run()
 						std::cout << exception.what() << std::endl;
 					}
 				}
+				*/
 			}
 		}
 	
@@ -341,24 +315,23 @@ Eigen::Matrix<double,12,1> PositionControl::track_cartesian_trajectory(const dou
 	// There are no checks here to see if the trajectory is queried correctly.
 	// This could cause problems later
 	
-	// Variables used in this scope
-	Eigen::Matrix<double,12,1> dx; dx.setZero();                                                // Value to be returned
-	Eigen::Isometry3d pose;                                                                     // Desired pose
-	Eigen::Matrix<double,6,1> vel, acc;                                                         // Desired velocity & acceleration
+	Eigen::Matrix<double,12,1> dx; dx.setZero();                                                // Discrete step for the hands
 	
 	if(this->isGrasping)
 	{
-		this->payloadTrajectory.get_state(pose,vel,acc,time);                               // Get the desired object state for the given time              
+		Eigen::Isometry3d global2Object = this->payloadTrajectory.get_pose(time);                     // Desired pose of the object in global frame
 		
-		dx = this->G.transpose()*(this->dt*vel + this->K*pose_error(pose,this->payload.pose())); // Feedforward + feedback control		
+		Eigen::Isometry3d global2Left = global2Object*this->payload.local_pose().inverse(); // Assume object is rigidly attached to left hand
+		
+		dx.head(6) = this->dt*pose_error(global2Left,this->leftPose);
+		
+		dx.tail(6) = this->dt*pose_error(global2Left*this->desiredLeft2Right,this->rightPose);
 	}
 	else
 	{
-		this->leftTrajectory.get_state(pose,vel,acc,time);                                  // Desired state for the left hand
-		dx.head(6) = this->dt*vel + this->K*pose_error(pose,this->leftPose);                // Feedforward + feedback on the left hand
-
-		this->rightTrajectory.get_state(pose,vel,acc,time);                                 // Desired state for the right hand
-		dx.tail(6) = this->dt*vel + this->K*pose_error(pose,this->rightPose);               // Feedforward + feedback on the right hand
+		dx.head(6) = this->dt*pose_error(this->leftTrajectory.get_pose(time), this->leftPose); // Difference between desired and actual pose
+		
+		dx.tail(6) = this->dt*pose_error(this->rightTrajectory.get_pose(time), this->rightPose);
 	}
 	
 	return dx;
