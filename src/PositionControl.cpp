@@ -195,7 +195,7 @@ void PositionControl::run()
 					}*/
 				}
 				
-				if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
+				/*if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
 				{	
 					// THE PROBLEM IS HERE
 					
@@ -211,7 +211,7 @@ void PositionControl::run()
 					{
 						std::cout << exception.what() << std::endl;
 					}
-				}
+				}*/
 			}
 		}
 	

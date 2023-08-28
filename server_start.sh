@@ -36,12 +36,12 @@ tmux send-keys    -t $SESSION "yarpserver --write" Enter
 
 # Split Pane 2, launch Gazebo
 
-if pidof -x "gzserver" >/dev/null; then
-    killall -9 gzserver
-fi
+#if pidof -x "gzserver" >/dev/null; then
+#    killall -9 gzserver
+#fi
 
 tmux split-window -v
-tmux send-keys -t "export YARP_CLOCK=/clock" Enter
+tmux send-keys -t "export YARP_CLOCK=/clock && YARP_CLOCK=/clock yarprobotinterface --from ecub_yarprobotinterface.ini" Enter
 tmux send-keys    -t $SESSION "gazebo $WORLD -s libgazebo_yarp_clock.so -s libgazebo_ros_init.so" Enter
 
 # Select Pane 0, launch the yarp server
