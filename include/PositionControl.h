@@ -8,6 +8,8 @@
 #define POSITION_CONTROL_H_
 
 #include <iCubBase.h>
+#include <yarp/os/BufferedPort.h>                                                                   // For publishing data
+#include <yarp/sig/Vector.h>                                                                        // For publishing data
 
 class PositionControl : public iCubBase
 {
@@ -15,46 +17,8 @@ class PositionControl : public iCubBase
 		PositionControl(const std::string              &pathToURDF,
 			        const std::vector<std::string> &jointList,
 			        const std::vector<std::string> &portList,
-			        const std::string              &robotModel)
-		:
-	        iCubBase(pathToURDF, jointList, portList, robotModel)
-	        {
-	        
-	        	// Shoulder constraints for iCub 2
-			double c = 1.71;
-			this->A = Eigen::MatrixXd::Zero(10,this->numJoints);
-			this->A.block(0,3,5,3) <<  c, -c,  0,
-						   c, -c, -c,
-						   0,  1,  1,
-						  -c,  c,  c,
-					 	   0, -1, -1;
-							   
-			this->A.block(5,10,5,3) = this->A.block(0,3,5,3);                           // Same constraint for right arm as left arm
-			
-			this->b.head(5) << 347.00*(M_PI/180),
-					   366.57*(M_PI/180),
-					    66.60*(M_PI/180),
-					   112.42*(M_PI/180),
-					   213.30*(M_PI/180);
-					   
-			this->b.tail(5) = this->b.head(5);
-		
-			// Bsmall = [ -I ]
-			//          [  I ]
-			//          [  A ]
-			this->Bsmall.resize(10+2*this->numJoints,this->numJoints);
-			this->Bsmall.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
-			this->Bsmall.block(  this->numJoints, 0, this->numJoints, this->numJoints).setIdentity();
-			this->Bsmall.block(2*this->numJoints, 0,              10, this->numJoints) = this->A;
-			
-			// B = [ 0 -I ]
-			//     [ 0  I ]
-			//     [ 0  A ]
-			this->B.resize(10+2*this->numJoints,12+this->numJoints);
-			this->B.block( 0,  0, 10+2*this->numJoints,              12).setZero();
-			this->B.block( 0, 12, 10+2*this->numJoints, this->numJoints) = this->Bsmall;
-					
-	        }
+			        const std::string              &robotModel);
+
 
 		//////////////////////// Inherited from iCubBase class ////////////////////////////
 		bool compute_joint_limits(double &lower, double &upper, const unsigned int &jointNum);
@@ -68,7 +32,9 @@ class PositionControl : public iCubBase
 	
 		Eigen::VectorXd qRef;                                                               // Reference joint position to send to motors
 
-		Eigen::Matrix<double,6,1> grasp_correction();                                       // Try to adjust the hand poses                                       
+		Eigen::Matrix<double,6,1> grasp_correction();                                       // Try to adjust the hand poses    
+		
+		yarp::os::BufferedPort<yarp::sig::Vector> actualPosition, referencePosition, positionError;                       
 		
 		/////////////////////// Inherited from PeriodicThread class ///////////////////////
 		bool threadInit();

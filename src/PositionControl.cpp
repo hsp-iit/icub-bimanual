@@ -1,5 +1,56 @@
 #include <PositionControl.h>
 
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+ //                                        Constructor                                             //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+PositionControl::PositionControl(const std::string              &pathToURDF,
+	                         const std::vector<std::string> &jointList,
+	                         const std::vector<std::string> &portList,
+	                         const std::string              &robotModel)
+		                 :
+		                 iCubBase(pathToURDF, jointList, portList, robotModel)
+{
+	// YARP ports
+	this->actualPosition.open("/actualPosition");
+	this->referencePosition.open("/referencePosition");
+	this->positionError.open("/positionError");
+
+	// Shoulder constraints for iCub 2
+	double c = 1.71;
+	this->A = Eigen::MatrixXd::Zero(10,this->numJoints);
+	this->A.block(0,3,5,3) <<  c, -c,  0,
+				   c, -c, -c,
+				   0,  1,  1,
+				  -c,  c,  c,
+			 	   0, -1, -1;
+					   
+	this->A.block(5,10,5,3) = this->A.block(0,3,5,3);                           // Same constraint for right arm as left arm
+	
+	this->b.head(5) << 347.00*(M_PI/180),
+			   366.57*(M_PI/180),
+			    66.60*(M_PI/180),
+			   112.42*(M_PI/180),
+			   213.30*(M_PI/180);
+			   
+	this->b.tail(5) = this->b.head(5);
+
+	// Bsmall = [ -I ]
+	//          [  I ]
+	//          [  A ]
+	this->Bsmall.resize(10+2*this->numJoints,this->numJoints);
+	this->Bsmall.block(                0, 0, this->numJoints, this->numJoints) = -Eigen::MatrixXd::Identity(this->numJoints,this->numJoints);
+	this->Bsmall.block(  this->numJoints, 0, this->numJoints, this->numJoints).setIdentity();
+	this->Bsmall.block(2*this->numJoints, 0,              10, this->numJoints) = this->A;
+	
+	// B = [ 0 -I ]
+	//     [ 0  I ]
+	//     [ 0  A ]
+	this->B.resize(10+2*this->numJoints,12+this->numJoints);
+	this->B.block( 0,  0, 10+2*this->numJoints,              12).setZero();
+	this->B.block( 0, 12, 10+2*this->numJoints, this->numJoints) = this->Bsmall;		
+}
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////
  //                                 Initialise the control thread                                  //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -197,8 +248,6 @@ void PositionControl::run()
 				
 				/*if(this->isGrasping) // Re-solve the QP problem subject to grasp constraints
 				{	
-					// THE PROBLEM IS HERE
-					
 					Eigen::Matrix<double,6,1> dc = grasp_correction();
 					
 				 	Eigen::MatrixXd Jc = this->C*this->J;
@@ -218,6 +267,22 @@ void PositionControl::run()
 		this->qRef += dq;                                                                   // Update reference position for joint motors
 		
 		if(not send_joint_commands(qRef)) std::cout << "[ERROR] [POSITION CONTROL] Could not send joint commands for some reason.\n";
+		
+		// Publish data for analysis
+		yarp::sig::Vector &actualVector = this->actualPosition.prepare();
+		yarp::sig::Vector &referenceVector = this->referencePosition.prepare();
+		yarp::sig::Vector &errorVector = this->positionError.prepare();
+		
+		for(int i = 0; i < this->numJoints; i++)
+		{
+			actualVector.push_back(this->q(i));
+			referenceVector.push_back(this->qRef(i));
+			errorVector.push_back(this->qRef(i) - this->q(i));
+		}
+		
+		this->actualPosition.write();
+		this->referencePosition.write();
+		this->positionError.write();
 	}
 }
 
