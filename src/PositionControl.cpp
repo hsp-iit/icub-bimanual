@@ -272,7 +272,10 @@ void PositionControl::run()
 		yarp::sig::Vector &actualVector = this->actualPosition.prepare();
 		yarp::sig::Vector &referenceVector = this->referencePosition.prepare();
 		yarp::sig::Vector &errorVector = this->positionError.prepare();
-		
+
+		actualVector.clear();
+		referenceVector.clear();
+		errorVector.clear();
 		for(int i = 0; i < this->numJoints; i++)
 		{
 			actualVector.push_back(this->q(i));
