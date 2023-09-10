@@ -19,10 +19,10 @@
 		<model name="ergoCub">
 			<include>
 				<uri>model://ergoCubGazeboV1</uri>
-				<pose>-0.35  0.0  0.9   0.0  0.0  0.0</pose>
+				<pose>-0.45  0.0  0.9   0.0  0.0  0.0</pose>
 			</include>
 		</model>
-
+		
 		<model name='table'>
 			<static>1</static>
 			<link name='link'>
@@ -220,7 +220,7 @@
 			<pose>0.5 0.028297 0 0 -0 1.5708</pose>
 		</model>
 		<model name='unit_box'>
-			<pose>0.167279 0.0 1.0 0 0 0</pose>
+			<pose>0.467279 0.0 1.0 0 0 0</pose>
 			<link name='box_link'>
 				<inertial>
 					<mass>1</mass>
@@ -237,7 +237,7 @@
 				<collision name='collision'>
 					<geometry>
 						<box>
-							<size>0.15 0.200 0.15</size>
+							<size>0.65 0.200 0.15</size>
 						</box>
 					</geometry>
 					<max_contacts>30</max_contacts>
@@ -258,7 +258,7 @@
 				<visual name='visual'>
 					<geometry>
 						<box>
-							<size>0.15 0.200 0.15</size>
+							<size>0.65 0.200 0.15</size>
 						</box>
 					</geometry>
 					<material>
@@ -275,7 +275,7 @@
 		</model>
 
 		<model name='unit_box2'>
-			<pose>0.167279 0.0 1.2 0 0 0</pose>
+			<pose>0.367279 0.0 1.2 0 0 0</pose>
 			<link name='box_link2'>
 				<inertial>
 					<mass>0.01</mass>
