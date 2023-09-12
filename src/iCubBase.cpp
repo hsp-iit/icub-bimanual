@@ -791,7 +791,7 @@ Eigen::VectorXd iCubBase::redundant_task()
 				task(i) = this->kr * this->manipulability * (JJt_left * partial_derivative(this->Jleft, i) * this->Jleft.transpose()).trace();
 			}
 			else
-				task(i) = this->kp * this->q(i); // Torso
+				task(i) = -this->kp * this->q(i); // Torso
 		}
 	}
 	}
