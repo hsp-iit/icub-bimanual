@@ -77,7 +77,7 @@ bool PositionControl::threadInit()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PositionControl::run()
 {
-	if (update_state())
+	if (update_state(this->qRef))
 	{
 		double elapsedTime = yarp::os::Time::now() - this->startTime; // Time since start of control
 
@@ -212,9 +212,7 @@ void PositionControl::run()
 					try // to solve the QP problem
 					{
 						// SO EASY compared to iCub2 ಥ‿ಥ
-						this->M(0, 0) = 100 * this->M(0, 0);
-						this->M(1, 1) = 100 * this->M(1, 1);
-						this->M(2, 2) = 100 * this->M(2, 2);
+
 						dq = QPSolver::redundant_least_squares(nullTask, this->M, dx, this->J,
 															   lowerBound, upperBound, startPoint);
 					}

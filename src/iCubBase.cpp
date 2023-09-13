@@ -111,7 +111,105 @@ iCubBase::iCubBase(const std::string &pathToURDF,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-//                         Update the kinematics & dynamics of the robot                          //
+//                         Update the kinematics & dynamics of the robot  with qref                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool iCubBase::update_state(Eigen::VectorXd &qRef)
+{
+	if (JointInterface::read_encoders(this->q, this->qdot))
+	{
+		// Put data in iDynTree class to compute inverse dynamics
+		// (there is probably a smarter way but I keep getting errors otherwise)
+		iDynTree::VectorDynSize tempPosition(this->numJoints);
+		iDynTree::VectorDynSize tempVelocity(this->numJoints);
+		for (int i = 0; i < this->numJoints; i++)
+		{
+			tempPosition(i) = qRef(i);
+			tempVelocity(i) = this->qdot(i);
+		}
+
+		// Put them in to the iDynTree class to solve the kinematics and dynamics
+		if (this->computer.setRobotState(this->basePose,
+										 tempPosition,
+										 iDynTree::Twist(iDynTree::GeomVector3(0, 0, 0), iDynTree::GeomVector3(0, 0, 0)), // Torso twist
+										 tempVelocity,																	  // Joint velocities
+										 iDynTree::Vector3(std::vector<double>{0.0, 0.0, -9.81})))						  // Direction of gravity
+		{
+			Eigen::MatrixXd temp(6, 6 + this->numJoints); // Temporary storage
+
+			this->computer.getFrameFreeFloatingJacobian("left", temp); // Compute left hand Jacobian
+			this->Jleft = temp.block(0, 6, 6, this->numJoints);		   // Remove floating base component
+			this->J.block(0, 0, 6, this->numJoints) = this->Jleft;	   // Assign to combined matrix
+
+			this->computer.getFrameFreeFloatingJacobian("right", temp); // Compute right hand Jacobian
+			this->Jright = temp.block(0, 6, 6, this->numJoints);		// Remove floating base component
+			this->J.block(6, 0, 6, this->numJoints) = this->Jright;		// Assign to larger matrix
+
+			// Compute inertia matrix
+			temp.resize(6 + this->numJoints, 6 + this->numJoints);
+			this->computer.getFreeFloatingMassMatrix(temp);				  // Compute inertia matrix for joints & base
+			this->M = temp.block(6, 6, this->numJoints, this->numJoints); // Remove floating base
+			this->invM = this->M.partialPivLu().inverse();				  // We will need the inverse late
+
+			// Update hand poses
+			this->leftPose = iDynTree_to_Eigen(this->computer.getWorldTransform("left"));
+			this->rightPose = iDynTree_to_Eigen(this->computer.getWorldTransform("right"));
+
+			// Update the grasp and constraint matrices
+			if (this->isGrasping)
+			{
+				// Assume the payload is rigidly attached to the left hand
+				this->payload.update_state(this->leftPose, iDynTree::toEigen(this->computer.getFrameVel("left")));
+
+				// G = [    I    0     I    0 ]
+				//     [ S(left) I S(right) I ]
+
+				// C = [  I  -S(left)  -I  S(right) ]
+				//     [  0      I      0    -I     ]
+
+				Eigen::Matrix<double, 3, 3> S; // Skew symmetric matrix
+
+				// Left hand component
+				Eigen::Vector3d r = this->leftPose.translation() - this->payload.pose().translation();
+
+				S << 0, -r(2), r(1),
+					r(2), 0, -r(0),
+					-r(1), r(0), 0;
+
+				this->G.block(3, 0, 3, 3) = S;
+				this->C.block(0, 3, 3, 3) = S;
+
+				// Right hand component
+				r = this->rightPose.translation() - this->payload.pose().translation();
+
+				S << 0, -r(2), r(1),
+					r(2), 0, -r(0),
+					-r(1), r(0), 0;
+
+				this->G.block(3, 6, 3, 3) = S;
+				this->C.block(0, 9, 3, 3) = -S;
+			}
+
+			return true;
+		}
+		else
+		{
+			std::cerr << "[ERROR] [ICUB BASE] update_state(): "
+					  << "Could not set state for the iDynTree::iKinDynComputations object." << std::endl;
+
+			return false;
+		}
+	}
+	else
+	{
+		std::cerr << "[ERROR] [ICUB BASE] update_state(): "
+				  << "Could not update state from the JointInterface class." << std::endl;
+
+		return false;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                         Update the kinematics & dynamics of the robot without qref                       //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool iCubBase::update_state()
 {
